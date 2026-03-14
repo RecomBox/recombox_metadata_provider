@@ -1,67 +1,119 @@
+
+use anyhow::Ok;
 use reqwest::{
     Client,
-    header::{HeaderMap, HeaderValue, USER_AGENT},
+    header::{HeaderMap, HeaderValue, USER_AGENT, ORIGIN, REFERER},
+    multipart::{Form}
 };
-use scraper::{Html, Selector};
-use regex::Regex;
+use visdom::Vis;
+use chrono::{NaiveDate, SecondsFormat};
 use fake_user_agent;
+use html_escape::decode_html_entities;
 
-use super::{FeaturedContent, FeaturedContentInfo};
 
-pub async fn new() -> anyhow::Result<FeaturedContent, anyhow::Error> {
+use super::{TrendingContent, TrendingContentInfo};
+
+pub async fn new() -> anyhow::Result<TrendingContent, anyhow::Error> {
 
     let mut new_headers = HeaderMap::new();
     new_headers.insert(USER_AGENT, HeaderValue::from_str(fake_user_agent::get_chrome_rua())?);
+    new_headers.insert(ORIGIN, HeaderValue::from_str("https://simkl.com").unwrap());
+    new_headers.insert(REFERER, HeaderValue::from_str("https://simkl.com/").unwrap());
+
+    let form_data = Form::new()
+        .text("action", "best")
+        .text("cat", "month")
+        .text("filt_tv", "0")
+        .text("offset", "0")
+        .text("async", "true")
+        .text("afilt_tv", "0")
+        .text("double", "0");
 
     let client = Client::new();
-    let res = client.get("https://simkl.com/movies/")
+    let res = client.post("https://simkl.com/ajax/full/movies.php")
         .headers(new_headers)
+        .multipart(form_data)
         .send()
         .await?;
     
     let html = res.text().await?;
 
-    let mut new_featured_content = FeaturedContent(vec![]);
+    let vis = Vis::load(&html)
+        .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+
+    let item_ele_list = vis.find(".SimklTVBestItems");
+
+    let mut new_trending_content = TrendingContent(vec![]);
+
+    for item_ele in item_ele_list {
+        let item_vis = Vis::load(item_ele.html())
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+
+        let raw_title = item_vis.find(".SimklTVBestItemTitle").text();
+        let title = decode_html_entities(raw_title.trim()).to_string();
 
 
-    let doc = Html::parse_document(&html);
-    let selector = Selector::parse("script").unwrap();
-    
-    for element in doc.select(&selector) {
-        let text: String = element.text().collect();
+        let raw_year = item_vis.find(".SimklTVAboutYearCountry").find(".detailYearInfo").find("a").get(0)
+            .ok_or("Can't find start year.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .get_attribute("title")
+            .ok_or("Can't find year.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .to_string();
 
-        if text.contains("var artData =") {
-            let re = Regex::new(r"(?s)var\s+artData\s*=\s*(\[.*?\]);").unwrap();
-            if let Some(cap) = re.captures(&text) {
-                let array_str = cap.get(1).unwrap().as_str();
 
-                let items: Vec<Vec<String>> = json5::from_str(&array_str)?;
 
-                for item in items {
-                    let raw_id = &item[8];
-                    let id = match raw_id.split("/").nth(1) {
-                        Some(id) => id,
-                        None => continue,
-                    };
+        let year = NaiveDate::parse_from_str(&raw_year, "%m/%d/%Y")?
+            .and_hms_opt(0, 0, 0)
+            .ok_or("Can't parse year.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .and_utc().to_rfc3339_opts(SecondsFormat::Secs, true);
 
-                    let mut new_contextual: Vec<String> = vec![
-                        String::from("Anime"),
-                        format!("Rating: {}", item[7]),
-                    ];
-                    new_contextual.retain(|i| !i.is_empty());
 
-                    new_featured_content.0.push(FeaturedContentInfo {
-                        id: id.to_string(),
-                        title: item[1].clone(),
-                        contextual: new_contextual,
-                        short_description: item[3].clone(),
-                        banner_url: format!("https://simkl.in/fanart/{}_medium.webp", item[9]),
-                    });
-                }
-            }
-        }
+
+        let raw_rating = item_vis.find(".SimklTVBestIcoScore").get(0)
+            .ok_or("Can't find rating.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .text();
+
+        let splited_rating = raw_rating.split("/").nth(0)
+            .ok_or("Can't find rating.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+
+        let rating: f32 = decode_html_entities(splited_rating.trim()).to_string().parse()?;
+
+        let raw_id = item_vis.find(".SimklTVBestItemWraper")
+            .find("a")
+            .get(0)
+            .ok_or("Can't find id.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .get_attribute("href")
+            .ok_or("Can't find id.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .to_string();
+
+        let id = raw_id.split("/").nth(2)
+            .ok_or("Can't find id.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .to_string();
+
+
+        let thumbnail_url = item_vis.find(".SimklTVBestItemWraper")
+            .find("a")
+            .find("img")
+            .get(0)
+            .ok_or("Can't find thumbnail.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .get_attribute("src")
+            .ok_or("Can't find thumbnail.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .to_string()
+            .replace("//", "https://");
+
+            
+        new_trending_content.0.push(TrendingContentInfo { title, year, rating, id, thumbnail_url });
+        
     }
 
-
-    return Ok(new_featured_content);
+    return Ok(new_trending_content);
 }

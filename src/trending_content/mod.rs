@@ -1,6 +1,6 @@
 mod anime;
-// mod movie;
-// mod tv;
+mod movie;
+mod tv;
 
 use serde::{Deserialize, Serialize};
 use crate::global_types::{Source};
@@ -24,9 +24,8 @@ pub struct TrendingContentInfo {
 pub async fn new(source: &Source) -> anyhow::Result<TrendingContent, anyhow::Error> {
     return match source {
         Source::Anime => Ok(anime::new().await?),
-        // Source::Movie => Ok(movie::new().await?),
-        // Source::TV => Ok(tv::new().await?),
-        _ => Err(anyhow::Error::msg("Unsupported source"))
+        Source::Movie => Ok(movie::new().await?),
+        Source::TV => Ok(tv::new().await?)
     };
 }
 

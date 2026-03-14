@@ -10,8 +10,6 @@ use chrono::{NaiveDate, SecondsFormat};
 use fake_user_agent;
 use html_escape::decode_html_entities;
 
-use serde_json::{json};
-use std::{collections::HashMap, string};
 
 use super::{TrendingContent, TrendingContentInfo};
 
@@ -26,7 +24,7 @@ pub async fn new() -> anyhow::Result<TrendingContent, anyhow::Error> {
         .text("action", "best")
         .text("cat", "month")
         .text("filt_tv", "0")
-        .text("offset", "40")
+        .text("offset", "0")
         .text("async", "true")
         .text("afilt_tv", "0")
         .text("double", "0");
