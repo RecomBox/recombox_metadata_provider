@@ -1,0 +1,121 @@
+
+use anyhow::Ok;
+use reqwest::{
+    Client,
+    header::{HeaderMap, HeaderValue, USER_AGENT, ORIGIN, REFERER},
+    multipart::{Form}
+};
+use visdom::Vis;
+use chrono::{NaiveDate, SecondsFormat};
+use fake_user_agent;
+use html_escape::decode_html_entities;
+
+use serde_json::{json};
+use std::{collections::HashMap, string};
+
+use super::{TrendingContent, TrendingContentInfo};
+
+pub async fn new() -> anyhow::Result<TrendingContent, anyhow::Error> {
+
+    let mut new_headers = HeaderMap::new();
+    new_headers.insert(USER_AGENT, HeaderValue::from_str(fake_user_agent::get_chrome_rua())?);
+    new_headers.insert(ORIGIN, HeaderValue::from_str("https://simkl.com").unwrap());
+    new_headers.insert(REFERER, HeaderValue::from_str("https://simkl.com/").unwrap());
+
+    let form_data = Form::new()
+        .text("action", "best")
+        .text("cat", "month")
+        .text("filt_tv", "0")
+        .text("offset", "40")
+        .text("async", "true")
+        .text("afilt_tv", "0")
+        .text("double", "0");
+
+    let client = Client::new();
+    let res = client.post("https://simkl.com/ajax/full/anime.php")
+        .headers(new_headers)
+        .multipart(form_data)
+        .send()
+        .await?;
+    
+    let html = res.text().await?;
+
+    let vis = Vis::load(&html)
+        .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+
+    let item_ele_list = vis.find(".SimklTVBestItems");
+
+    let mut new_trending_content = TrendingContent(vec![]);
+
+    for item_ele in item_ele_list {
+        let item_vis = Vis::load(item_ele.html())
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+
+        let raw_title = item_vis.find(".SimklTVBestItemTitle").text();
+        let title = decode_html_entities(raw_title.trim()).to_string();
+
+
+        let raw_year = item_vis.find(".SimklTVAboutYearCountry").find(".detailYearInfo").find("a").get(0)
+            .ok_or("Can't find start year.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .get_attribute("title")
+            .ok_or("Can't find year.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .to_string();
+
+
+
+        let year = NaiveDate::parse_from_str(&raw_year, "%m/%d/%Y")?
+            .and_hms_opt(0, 0, 0)
+            .ok_or("Can't parse year.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .and_utc().to_rfc3339_opts(SecondsFormat::Secs, true);
+
+
+
+        let raw_rating = item_vis.find(".SimklTVBestIcoScore").get(0)
+            .ok_or("Can't find rating.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .text();
+
+        let splited_rating = raw_rating.split("/").nth(0)
+            .ok_or("Can't find rating.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+
+        let rating: f32 = decode_html_entities(splited_rating.trim()).to_string().parse()?;
+
+        let raw_id = item_vis.find(".SimklTVBestItemWraper")
+            .find("a")
+            .get(0)
+            .ok_or("Can't find id.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .get_attribute("href")
+            .ok_or("Can't find id.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .to_string();
+
+        let id = raw_id.split("/").nth(2)
+            .ok_or("Can't find id.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .to_string();
+
+
+        let thumbnail_url = item_vis.find(".SimklTVBestItemWraper")
+            .find("a")
+            .find("img")
+            .get(0)
+            .ok_or("Can't find thumbnail.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .get_attribute("src")
+            .ok_or("Can't find thumbnail.")
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?
+            .to_string()
+            .replace("//", "https://");
+
+            
+        new_trending_content.0.push(TrendingContentInfo { title, year, rating, id, thumbnail_url });
+        
+    }
+
+    return Ok(new_trending_content);
+}

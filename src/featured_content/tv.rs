@@ -1,0 +1,67 @@
+use reqwest::{
+    Client,
+    header::{HeaderMap, HeaderValue, USER_AGENT},
+};
+use visdom::Vis;
+use regex::Regex;
+use fake_user_agent;
+
+use super::{FeaturedContent, FeaturedContentInfo};
+
+pub async fn new() -> anyhow::Result<FeaturedContent, anyhow::Error> {
+
+    let mut new_headers = HeaderMap::new();
+    new_headers.insert(USER_AGENT, HeaderValue::from_str(fake_user_agent::get_chrome_rua())?);
+
+    let client = Client::new();
+    let res = client.get("https://simkl.com/tv/")
+        .headers(new_headers)
+        .send()
+        .await?;
+    
+    let html = res.text().await?;
+
+    let mut new_featured_content = FeaturedContent(vec![]);
+
+
+    let vis = Vis::load(html)
+        .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+
+    for script in vis.find("script") {
+        let text: String = script.html();
+
+        if text.contains("var artData =") {
+            let re = Regex::new(r"(?s)var\s+artData\s*=\s*(\[.*?\]);").unwrap();
+            if let Some(cap) = re.captures(&text) {
+                let array_str = cap.get(1).unwrap().as_str();
+
+                let items: Vec<Vec<String>> = json5::from_str(&array_str)?;
+
+                for item in items {
+                    let raw_id = &item[8];
+                    let id = match raw_id.split("/").nth(1) {
+                        Some(id) => id,
+                        None => continue,
+                    };
+
+                    let mut new_contextual: Vec<String> = vec![
+                        String::from("TV"),
+                        format!("Rating: {}", item[7]),
+                    ];
+                    new_contextual.retain(|i| !i.is_empty());
+
+                    new_featured_content.0.push(FeaturedContentInfo {
+                        id: id.to_string(),
+                        title: item[1].clone(),
+                        contextual: new_contextual,
+                        short_description: item[3].clone(),
+                        banner_url: format!("https://simkl.in/fanart/{}_medium.webp", item[9]),
+                    });
+                }
+            }
+        }
+    }
+
+
+    return Ok(new_featured_content);
+}
