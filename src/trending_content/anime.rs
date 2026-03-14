@@ -1,5 +1,4 @@
 
-use anyhow::Ok;
 use reqwest::{
     Client,
     header::{HeaderMap, HeaderValue, USER_AGENT, ORIGIN, REFERER},
