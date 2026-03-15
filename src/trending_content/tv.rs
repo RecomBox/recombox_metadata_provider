@@ -15,8 +15,8 @@ pub async fn new() -> anyhow::Result<TrendingContent, anyhow::Error> {
 
     let mut new_headers = HeaderMap::new();
     new_headers.insert(USER_AGENT, HeaderValue::from_str(fake_user_agent::get_chrome_rua())?);
-    new_headers.insert(ORIGIN, HeaderValue::from_str("https://simkl.com").unwrap());
-    new_headers.insert(REFERER, HeaderValue::from_str("https://simkl.com/").unwrap());
+    new_headers.insert(ORIGIN, HeaderValue::from_str("https://simkl.com")?);
+    new_headers.insert(REFERER, HeaderValue::from_str("https://simkl.com/")?);
 
     let form_data = Form::new()
         .text("action", "best")
@@ -51,21 +51,10 @@ pub async fn new() -> anyhow::Result<TrendingContent, anyhow::Error> {
         let title = decode_html_entities(raw_title.trim()).to_string();
 
 
-        let raw_year = item_vis.find(".SimklTVAboutYearCountry").find(".detailYearInfo").find("a").get(0)
-            .ok_or("Can't find start year.")
-            .map_err(|e| anyhow::Error::msg(e.to_string()))?
-            .get_attribute("title")
-            .ok_or("Can't find year.")
-            .map_err(|e| anyhow::Error::msg(e.to_string()))?
-            .to_string();
+        let raw_year = item_vis.find(".SimklTVAboutYearCountry")
+            .find(".detailYearInfo").text();
 
-
-
-        let year = NaiveDate::parse_from_str(&raw_year, "%m/%d/%Y")?
-            .and_hms_opt(0, 0, 0)
-            .ok_or("Can't parse year.")
-            .map_err(|e| anyhow::Error::msg(e.to_string()))?
-            .and_utc().to_rfc3339_opts(SecondsFormat::Secs, true);
+        let year = decode_html_entities(raw_year.trim()).to_string();
 
 
 

@@ -31,9 +31,12 @@ pub async fn new() -> anyhow::Result<FeaturedContent, anyhow::Error> {
         let text: String = script.html();
 
         if text.contains("var artData =") {
-            let re = Regex::new(r"(?s)var\s+artData\s*=\s*(\[.*?\]);").unwrap();
+            let re = Regex::new(r"(?s)var\s+artData\s*=\s*(\[.*?\]);")?;
             if let Some(cap) = re.captures(&text) {
-                let array_str = cap.get(1).unwrap().as_str();
+                let array_str = cap.get(1)
+                    .ok_or("array_str not found")
+                    .map_err(|e| anyhow::Error::msg(e.to_string()))?
+                    .as_str();
 
                 let items: Vec<Vec<String>> = json5::from_str(&array_str)?;
 

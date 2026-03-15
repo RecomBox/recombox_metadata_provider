@@ -1,5 +1,5 @@
 mod anime;
-mod movie;
+mod movies;
 mod tv;
 
 use serde::{Deserialize, Serialize};
@@ -24,7 +24,7 @@ pub struct TrendingContentInfo {
 pub async fn new(source: &Source) -> anyhow::Result<TrendingContent, anyhow::Error> {
     return match source {
         Source::Anime => Ok(anime::new().await?),
-        Source::Movie => Ok(movie::new().await?),
+        Source::Movies => Ok(movies::new().await?),
         Source::TV => Ok(tv::new().await?)
     };
 }
