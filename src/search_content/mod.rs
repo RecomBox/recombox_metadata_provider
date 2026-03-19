@@ -19,11 +19,11 @@ pub struct SearchContentInfo {
 }
 
 
-pub async fn new(source: &Source) -> anyhow::Result<SearchContent, anyhow::Error> {
+pub async fn new(source: &Source, search: &str, sort: u64, offset: u64) -> anyhow::Result<SearchContent, anyhow::Error> {
     return match source {
-        Source::Anime => Ok(anime::new(source,"love", 0, 0).await?),
-        Source::Movies => Ok(movies::new(source,"love", 0, 0).await?),
-        Source::TV => Ok(tv::new(source,"love", 0, 0).await?),
+        Source::Anime => Ok(anime::new(source, search, sort, offset).await?),
+        Source::Movies => Ok(movies::new(source, search, sort, offset).await?),
+        Source::TV => Ok(tv::new(source, search, sort, offset).await?),
     };
 }
 

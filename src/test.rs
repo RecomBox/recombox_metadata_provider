@@ -25,7 +25,7 @@ mod tests {
     async fn search_content() {
         use crate::search_content;
 
-        let result = search_content::new(&crate::global_types::Source::Anime).await.unwrap();
+        let result = search_content::new(&crate::global_types::Source::Anime, "love", 0, 0).await.unwrap();
         println!("{:?}", result);
     }
 
