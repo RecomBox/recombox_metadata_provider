@@ -1,0 +1,247 @@
+
+use reqwest::{
+    Client,
+    header::{HeaderMap, HeaderValue, USER_AGENT, ORIGIN, REFERER}
+};
+use serde_json::{Value};
+use visdom::Vis;
+use fake_user_agent;
+use html_escape::decode_html_entities;
+use urlencoding::decode;
+
+
+use super::{ViewContentInfo};
+
+pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
+
+    let mut new_headers = HeaderMap::new();
+    new_headers.insert(USER_AGENT, HeaderValue::from_str(fake_user_agent::get_chrome_rua())?);
+    new_headers.insert(ORIGIN, HeaderValue::from_str("https://simkl.com")?);
+    new_headers.insert(REFERER, HeaderValue::from_str("https://simkl.com/")?);
+
+
+    let client = Client::new();
+
+    let res = client.get(format!("https://simkl.com/anime{}/episodes/", decode(id)?))
+        .headers(new_headers)
+        .send()
+        .await?;
+    
+    let html = res.text().await?;
+
+
+    let vis = Vis::load(&html)
+        .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+
+    let raw_thumbnail = vis.find(".SimklTVDetailPoster")
+        .find("#detailPosterImg")
+        .attr("src")
+        .ok_or(anyhow::Error::msg("Thumbnail not found"))?
+        .to_string();
+
+    let thumbnail_url = format!("https://wsrv.nl/?url=https:{}", raw_thumbnail);
+
+    
+
+    let url = format!("https://simkl.com/anime{}", decode(id)?);
+
+
+    let raw_title = vis.find(".SimklTVAboutTitleText")
+        .find(".headDetail").text();
+
+    let title = decode_html_entities(&raw_title.trim()).to_string();
+
+
+
+    let raw_description = vis.find(".SimklTVAboutDetailsText")
+        .find(".full-text").text();
+
+    let description = decode_html_entities(&raw_description.trim()).to_string();
+
+
+
+    let raw_trailer_id = vis.find(".liteYoutube")
+        .attr("id")
+        .ok_or(anyhow::Error::msg("Trailer id not found"))?
+        .to_string();
+
+    let trailer_url = format!("https://www.youtube.com/embed/{}?autoplay=1&vq=highres", raw_trailer_id);
+
+
+
+    let rating_container_ele = vis.find(".SimklTVAboutRatingBorder");
+
+    let rating = format!("Rating: {}", rating_container_ele.find(".SimklTVRatingAverage").text());
+
+
+
+    let mut mal_id: String = String::from("");
+    
+
+    let a_ele = vis.find(".SimklTVAboutRatingBorder").find("a");
+    
+    for ele in a_ele {
+
+        let mal_url = match ele.get_attribute("href") {
+            Some(url) => url.to_string(),
+            None => continue
+        };
+
+        if mal_url.contains("myanimelist") {
+            mal_id = mal_url.split("/").nth(4)
+                .ok_or(anyhow::Error::msg("Mal id not found"))?
+                .to_string();
+            break;
+        }
+    }
+
+
+
+    let mut banner_url = String::from("");
+
+    if !mal_id.is_empty() {
+        let res = client.get(format!("https://kitsu.io/api/edge/mappings?filter[externalSite]=myanimelist/anime&filter[externalId]={}", mal_id))
+            .send()
+            .await?;
+
+        let data: Value = res.json().await?;
+
+        let kitsu_map_id = data.get("data")
+            .ok_or("kitsu_map_id not found.")
+            .map_err(|e| anyhow::Error::msg(e))?
+            .as_array()
+            .ok_or("kitsu_map_id not found.")
+            .map_err(|e| anyhow::Error::msg(e))?
+            .get(0)
+            .ok_or("kitsu_map_id not found.")
+            .map_err(|e| anyhow::Error::msg(e))?
+            .get("id")
+            .ok_or("kitsu_map_id not found.")
+            .map_err(|e| anyhow::Error::msg(e))?
+            .as_str()
+            .ok_or("kitsu_map_id not found.")
+            .map_err(|e| anyhow::Error::msg(e))?
+            .to_string();
+
+
+        let res = client.get(format!("https://kitsu.io/api/edge/mappings/{}/relationships/item", kitsu_map_id))
+            .send()
+            .await?;
+
+        let data: Value = res.json().await?;
+
+        let kitsu_id = data.get("data")
+            .ok_or("kitsu_id not found.")
+            .map_err(|e| anyhow::Error::msg(e))?
+            .get("id")
+            .ok_or("kitsu_id not found.")
+            .map_err(|e| anyhow::Error::msg(e))?
+            .as_str()
+            .ok_or("kitsu_id not found.")
+            .map_err(|e| anyhow::Error::msg(e))?
+            .to_string();
+
+            
+
+        let res = client.get(format!("https://kitsu.io/api/edge/anime/{}", kitsu_id))
+            .send()
+            .await?;
+
+        let data: Value = res.json().await?;
+
+
+        banner_url = data.get("data")
+            .and_then(|i| i.get("attributes"))
+            .and_then(|i| i.get("coverImage"))
+            .and_then(|i| 
+                match i.get("large") {
+                    Some(url) => Some(url),
+                    None => i.get("original")
+                }
+            )
+            .ok_or("banner_url not found")
+            .map_err(|e| anyhow::Error::msg(e))?
+            .as_str()
+            .ok_or("banner_url not found")
+            .map_err(|e| anyhow::Error::msg(e))?
+            .to_string();
+
+
+    }
+
+
+
+    let contextual: Vec<String> = vec!["Anime".to_string(), rating];
+
+    let pictures:Vec<String> = vec![thumbnail_url.clone(), banner_url.clone()];
+
+    let eps_ele = vis.find(".SimklTVEpisodesBlock")
+        .find(".goEpisode");
+
+    let mut episodes: Vec<String> = vec![];
+
+    for ep_ele in eps_ele {
+        let ep_vis = Vis::load(ep_ele.html())
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+
+        let ep_number = ep_vis.find(".SimklTVEpisodesEpNumber").text();
+        let ep_title = ep_vis.find(".SimklTVEpisodesEpTitle").text();
+
+        let episode_title = format!("{}: {}", decode_html_entities(ep_number.trim()), decode_html_entities(ep_title.trim()));
+
+        episodes.push(episode_title);
+    }
+
+    let mut countdown: i64 = -1;
+
+    let res = client.get(format!("https://animecountdown.com{}", decode(id)?))
+        .send()
+        .await?;
+
+    let html = res.text().await?;
+
+    let cd_vis = Vis::load(&html)
+        .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+
+    let cd_type_ele_li = cd_vis.find(".type-airing");
+
+    for cd_type_ele in cd_type_ele_li {
+        let cd_type_vis = Vis::load(cd_type_ele.html())
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+
+        let cd_content = cd_type_vis.find("countdown-content-page-item-left-desc");
+
+        if !cd_content.text().to_lowercase().contains(&"Countdown to".to_lowercase()) {
+            continue;
+        }
+
+        countdown = match cd_content.find("span").attr("data-ts") {
+            Some(ts) => if ts.to_string().trim().is_empty() { 0 } else { ts.to_string().trim().parse()? },
+            None => 0
+        }
+        
+    }
+
+
+
+
+
+
+    let new_view_content_info = ViewContentInfo { 
+        url,
+        title,
+        contextual,
+        description,
+        trailer_url,
+        thumbnail_url,
+        banner_url,
+        countdown,
+        pictures,
+        episodes: vec![episodes],
+    };
+
+    
+    
+    return Ok(new_view_content_info);
+    // return Err(anyhow::Error::msg("Not implemented"));
+}

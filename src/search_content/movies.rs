@@ -7,6 +7,7 @@ use reqwest::{
 };
 use fake_user_agent;
 use serde_json::{Value};
+use urlencoding::encode;
 
 use super::{SearchContent, SearchContentInfo};
 use crate::global_types::Source;
@@ -50,13 +51,16 @@ pub async fn new(
 
     for (_,  value) in data_obj {
 
-        let id = value.get("id")
+        let raw_id = value.get("url")
             .ok_or("Unable to load id")
             .map_err(|e| anyhow::Error::msg(e))?
             .as_str()
             .ok_or("Unable to load id as string")
             .map_err(|e| anyhow::Error::msg(e))?
-            .to_string();
+            .to_string()
+            .replace("/movies", "");
+
+        let id = encode(&raw_id).to_string();
 
         let year = value.get("year")
             .ok_or("Unable to load year")
@@ -79,7 +83,7 @@ pub async fn new(
             .map_err(|e| anyhow::Error::msg(e))?
             .to_string();
 
-        let thumbnail_url = format!("https://simkl.in/posters/{}_m.webp", raw_thumbnail_id);
+        let thumbnail_url = format!("https://wsrv.nl/?url=https://simkl.in/posters/{}_m.webp", raw_thumbnail_id);
 
         let title_obj = value.get("titles")
             .ok_or("Unable to load title")

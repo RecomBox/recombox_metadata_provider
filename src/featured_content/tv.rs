@@ -5,8 +5,10 @@ use reqwest::{
 use visdom::Vis;
 use regex::Regex;
 use fake_user_agent;
+use urlencoding::encode;
 
 use super::{FeaturedContent, FeaturedContentInfo};
+
 
 pub async fn new() -> anyhow::Result<FeaturedContent, anyhow::Error> {
 
@@ -41,11 +43,7 @@ pub async fn new() -> anyhow::Result<FeaturedContent, anyhow::Error> {
                 let items: Vec<Vec<String>> = json5::from_str(&array_str)?;
 
                 for item in items {
-                    let raw_id = &item[8];
-                    let id = match raw_id.split("/").nth(1) {
-                        Some(id) => id,
-                        None => continue,
-                    };
+                    let id = encode(&item[8]).to_string();
 
                     let mut new_contextual: Vec<String> = vec![
                         String::from("TV"),
@@ -58,7 +56,7 @@ pub async fn new() -> anyhow::Result<FeaturedContent, anyhow::Error> {
                         title: item[1].clone(),
                         contextual: new_contextual,
                         short_description: item[3].clone(),
-                        banner_url: format!("https://simkl.in/fanart/{}_medium.webp", item[9]),
+                        banner_url: format!("https://wsrv.nl/?url=https://simkl.in/fanart/{}_medium.webp", item[9]),
                     });
                 }
             }
