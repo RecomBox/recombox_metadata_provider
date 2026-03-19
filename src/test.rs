@@ -1,5 +1,8 @@
 #[cfg(test)]
 mod tests {
+    // ==================================================
+    // Note: Uncomment the #[tokio::test] attributes to run the tests
+    // ==================================================
 
     // #[tokio::test]
     async fn featured_content() {
