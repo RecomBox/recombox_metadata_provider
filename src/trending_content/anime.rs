@@ -7,7 +7,7 @@ use reqwest::{
 use visdom::Vis;
 use fake_user_agent;
 use html_escape::decode_html_entities;
-
+use urlencoding::encode;
 
 use super::{TrendingContent, TrendingContentInfo};
 
@@ -76,12 +76,10 @@ pub async fn new() -> anyhow::Result<TrendingContent, anyhow::Error> {
             .get_attribute("href")
             .ok_or("Can't find id.")
             .map_err(|e| anyhow::Error::msg(e.to_string()))?
-            .to_string();
+            .to_string()
+            .replace("/anime", "");
 
-        let id = raw_id.split("/").nth(2)
-            .ok_or("Can't find id.")
-            .map_err(|e| anyhow::Error::msg(e.to_string()))?
-            .to_string();
+        let id = encode(&raw_id).to_string();
 
 
         let thumbnail_url = item_vis.find(".SimklTVBestItemWraper")

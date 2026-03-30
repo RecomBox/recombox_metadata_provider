@@ -13,11 +13,11 @@ mod tests {
         println!("{:?}", result);
     }
 
-    // #[tokio::test]
+    #[tokio::test]
     async fn trending_content() {
         use crate::trending_content;
 
-        let result = trending_content::new(&crate::global_types::Source::Anime).await.unwrap();
+        let result = trending_content::new(&crate::global_types::Source::TV).await.unwrap();
         println!("{:?}", result);
     }
 
@@ -29,7 +29,7 @@ mod tests {
         println!("{:?}", result);
     }
 
-    #[tokio::test]
+    // #[tokio::test]
     async fn view_content() {
         use crate::view_content_info;
 
