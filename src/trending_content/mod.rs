@@ -7,7 +7,7 @@ use crate::global_types::{Source};
 
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct TrendingContent (Vec<TrendingContentInfo>);
+pub struct TrendingContent (pub Vec<TrendingContentInfo>);
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TrendingContentInfo {
