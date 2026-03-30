@@ -16,7 +16,7 @@ pub async fn new(
     source: &Source,
     search: &str, 
     sort: u64,
-    offset: u64
+    page: u64
 ) -> anyhow::Result<SearchContent, anyhow::Error> {
 
     let mut new_headers = HeaderMap::new();
@@ -30,7 +30,7 @@ pub async fn new(
         .text("s", search.to_string())
         .text("type", source.to_string())
         .text("sort", sort.to_string())
-        .text("offset", offset.to_string());
+        .text("offset", ((page-1) * 50).to_string());
 
 
     let client = Client::new();
