@@ -25,7 +25,7 @@ mod tests {
     async fn search_content() {
         use crate::search_content;
 
-        let result = search_content::new(&crate::global_types::Source::Movies, "loki", 2, 1).await.unwrap();
+        let result = search_content::new(&crate::global_types::Source::Movies, "L", 1, 1).await.unwrap();
         println!("{:?}", result);
     }
 

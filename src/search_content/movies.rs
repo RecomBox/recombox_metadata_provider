@@ -8,6 +8,7 @@ use reqwest::{
 use fake_user_agent;
 use serde_json::{Value};
 use urlencoding::encode;
+use indexmap::IndexMap;
 
 use super::{SearchContent, SearchContentInfo};
 use crate::global_types::Source;
@@ -40,16 +41,12 @@ pub async fn new(
         .send()
         .await?;
 
-
-    let data: Value = res.json().await?;
-
-    let data_obj = data.as_object()
-        .ok_or("Unable to load as object")
-        .map_err(|e| anyhow::Error::msg(e))?;
+    
+    let data: IndexMap<String, Value> = res.json().await?;
 
     let mut new_search_content = SearchContent(Vec::new());
 
-    for (_,  value) in data_obj {
+    for (_,  value) in data {
 
         let raw_id = value.get("url")
             .ok_or("Unable to load id")
