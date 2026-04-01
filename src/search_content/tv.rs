@@ -42,7 +42,13 @@ pub async fn new(
         .await?;
 
 
-    let data: IndexMap<String, Value> = res.json().await?;
+    let data: IndexMap<String, Value> = match res.json().await {
+        Ok(data) => data,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            return Ok(SearchContent(Vec::new()));
+        },
+    };
 
 
     let mut new_search_content = SearchContent(Vec::new());
