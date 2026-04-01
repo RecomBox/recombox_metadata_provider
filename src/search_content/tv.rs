@@ -96,7 +96,7 @@ pub async fn new(
             .ok_or("Unable to load title as object")
             .map_err(|e| anyhow::Error::msg(e))?;
 
-        let title = match title_obj.get("a0") {
+        let title = match title_obj.get("a7") {
             Some(title) => title.as_str()
                 .ok_or("Unable to load title as string")
                 .map_err(|e| anyhow::Error::msg(e))?
