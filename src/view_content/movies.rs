@@ -9,7 +9,7 @@ use html_escape::decode_html_entities;
 use urlencoding::decode;
 
 
-use super::{ViewContentInfo};
+use super::{ViewContentInfo, EpisodeInfo};
 
 pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
@@ -41,8 +41,6 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
     let thumbnail_url = format!("https://wsrv.nl/?url=https:{}", raw_thumbnail);
 
     
-
-
     let url = format!("https://simkl.com/movies{}", decode(id)?);
 
 
@@ -148,11 +146,14 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
         contextual,
         description,
         trailer_url,
-        thumbnail_url,
+        thumbnail_url: thumbnail_url.clone(),
         banner_url,
         countdown: -1,
         pictures,
-        episodes: vec![vec!["Full".to_string()]],
+        episodes: vec![vec![EpisodeInfo{
+            title: "Full".to_string(),
+            thumbnail_url: thumbnail_url.clone(),
+        }]],
     };
 
 

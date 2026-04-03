@@ -6,6 +6,11 @@ mod tv;
 use serde::{Deserialize, Serialize};
 use crate::global_types::{Source};
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EpisodeInfo {
+    pub title: String,
+    pub thumbnail_url: String
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ViewContentInfo {
@@ -18,7 +23,7 @@ pub struct ViewContentInfo {
     pub trailer_url: String,
     pub countdown: i64,
     pub pictures: Vec<String>,
-    pub episodes: Vec<Vec<String>> // Seasons -> Episodes
+    pub episodes: Vec<Vec<EpisodeInfo>> // Seasons -> Episodes
     
 }
 

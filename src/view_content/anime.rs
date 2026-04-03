@@ -10,7 +10,8 @@ use html_escape::decode_html_entities;
 use urlencoding::decode;
 
 
-use super::{ViewContentInfo};
+
+use super::{ViewContentInfo, EpisodeInfo};
 
 pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
@@ -178,7 +179,7 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
     let eps_ele = vis.find(".SimklTVEpisodesBlock")
         .find(".goEpisode");
 
-    let mut episodes: Vec<String> = vec![];
+    let mut episodes: Vec<EpisodeInfo> = vec![];
 
     for ep_ele in eps_ele {
         let ep_vis = Vis::load(ep_ele.html())
@@ -189,7 +190,17 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
         let episode_title = format!("{}: {}", decode_html_entities(ep_number.trim()), decode_html_entities(ep_title.trim()));
 
-        episodes.push(episode_title);
+        let ep_thumbnail = match ep_vis.find("img.lazy").attr("data-original")
+            .ok_or(anyhow::Error::msg("Ep thumbnail not found")) {
+                Ok(url) => format!("https://wsrv.nl/?url=https:{}", url),
+                Err(_) => "".to_string()
+            };
+
+        let new_ep_info = EpisodeInfo{
+            title: episode_title,
+            thumbnail_url: ep_thumbnail
+        };
+        episodes.push(new_ep_info);
     }
 
     let mut countdown: i64 = -1;

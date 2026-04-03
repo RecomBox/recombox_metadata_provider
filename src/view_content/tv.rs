@@ -10,7 +10,7 @@ use html_escape::decode_html_entities;
 use urlencoding::decode;
 
 
-use super::{ViewContentInfo};
+use super::{ViewContentInfo, EpisodeInfo};
 
 pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
@@ -141,7 +141,7 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
     let banner_url = pictures.get(0).unwrap_or(&"".to_string()).clone();
 
-    let mut episodes: Vec<Vec<String>> = vec![];
+    let mut episodes: Vec<Vec<EpisodeInfo>> = vec![];
 
     let season_ele_li = vis.find(".SimklTVEpisodesBlock").find("tr");
 
@@ -159,17 +159,29 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
         let eps_ele = season_vis.find(".goEpisode");
         
-        let mut new_episodes: Vec<String> = vec![];
+        let mut new_episodes: Vec<EpisodeInfo> = vec![];
         for ep_ele in eps_ele {
             let ep_vis = Vis::load(ep_ele.html())
                 .map_err(|e| anyhow::Error::msg(e.to_string()))?;
 
             let ep_number = ep_vis.find(".SimklTVEpisodesEpNumber").text();
             let ep_title = ep_vis.find(".SimklTVEpisodesEpTitle").text();
+            
 
             let episode_title = format!("{}: {}", decode_html_entities(ep_number.trim()), decode_html_entities(ep_title.trim()));
 
-            new_episodes.push(episode_title);
+            let ep_thumbnail = match ep_vis.find("img.lazy").attr("data-original")
+                .ok_or(anyhow::Error::msg("Ep thumbnail not found")) {
+                    Ok(url) => format!("https://wsrv.nl/?url=https:{}", url),
+                    Err(_) => "".to_string()
+                };
+
+            let new_ep_info = EpisodeInfo{
+                title: episode_title,
+                thumbnail_url: ep_thumbnail
+            };
+
+            new_episodes.push(new_ep_info);
         }
         if new_episodes.len() == 0 {
             continue;
