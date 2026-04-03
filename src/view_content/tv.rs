@@ -8,6 +8,7 @@ use visdom::Vis;
 use fake_user_agent;
 use html_escape::decode_html_entities;
 use urlencoding::decode;
+use regex::Regex;
 
 
 use super::{ViewContentInfo, EpisodeInfo};
@@ -32,6 +33,25 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
     let vis = Vis::load(&html)
         .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+
+    // -> Extract Banner URL
+    // Don't ask me how it work. I had no idea too.
+    let mut banner_url = String::new();
+    {
+        let class_re = Regex::new(r#"\.SimklLoginBg2\s*\{[^}]*\}"#).unwrap();
+        if let Some(class_block) = class_re.find(&html) {
+            let css = class_block.as_str();
+            let url_re = Regex::new(r#"background-image\s*:\s*url\(['"]?(?P<url>[^'")]+)['"]?\)"#).unwrap();
+            if let Some(caps) = url_re.captures(css) {
+                let mut url = caps["url"].to_string();
+                if url.starts_with("//") {
+                    url = format!("https://wsrv.nl/?url=https:{}", url);
+                }
+                banner_url = url;
+            }
+        }
+    }
+    // <-
 
     let raw_thumbnail = vis.find(".SimklTVDetailPoster")
         .find("#detailPosterImg")
@@ -97,7 +117,7 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
     }
 
 
-    let mut pictures: Vec<String> = vec![];
+    let mut pictures: Vec<String> = vec![banner_url.clone()];
 
     if !imdb_id.is_empty() {
         let mut new_headers = HeaderMap::new();
@@ -139,7 +159,6 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
     let contextual: Vec<String> = vec!["Movies".to_string(), rating];
 
-    let banner_url = pictures.get(0).unwrap_or(&"".to_string()).clone();
 
     let mut episodes: Vec<Vec<EpisodeInfo>> = vec![];
 
