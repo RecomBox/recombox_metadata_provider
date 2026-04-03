@@ -2,6 +2,7 @@ mod anime;
 mod movies;
 mod tv;
 
+
 use serde::{Deserialize, Serialize};
 use crate::global_types::{Source};
 
