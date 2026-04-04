@@ -71,8 +71,12 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
 
 
-    let raw_description = vis.find(".SimklTVAboutDetailsText")
+    let mut raw_description = vis.find(".SimklTVAboutDetailsText")
         .find(".full-text").text();
+
+    if raw_description.is_empty() {
+        raw_description = vis.find(".SimklTVAboutDetailsText").text();
+    }
 
     let description = decode_html_entities(&raw_description.trim()).to_string();
 
