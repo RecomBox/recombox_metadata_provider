@@ -104,6 +104,8 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
         }
     }
 
+    let mut pictures:Vec<String> = vec![thumbnail_url.clone()];
+
     let mut banner_url= String::new();
 
     if !mal_id.is_empty() {
@@ -119,6 +121,7 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
             .and_then(|v| v.get("id"))
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
+
 
         if let Some(kitsu_id) = kitsu_map_id {
             let res = client.get(format!("https://kitsu.io/api/edge/mappings/{}/relationships/item", kitsu_id))
@@ -137,39 +140,36 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
                 .ok_or("kitsu_id not found.")
                 .map_err(|e| anyhow::Error::msg(e))?
                 .to_string();
-
                 
-
             let res = client.get(format!("https://kitsu.io/api/edge/anime/{}", kitsu_id))
                 .send()
                 .await?;
 
             let data: Value = res.json().await?;
 
-            banner_url = data.get("data")
+            banner_url = match data.get("data")
                 .and_then(|f| f.get("attributes"))
                 .and_then(|f| f.get("coverImage"))
-                .and_then(|f| f.get("original"))
-                .ok_or("banner url not found from kitsu")
-                .map_err(|e| anyhow::Error::msg(e))?
-                .as_str()
-                .ok_or("banner url not found from kitsu")
-                .map_err(|e| anyhow::Error::msg(e))?
-                .to_string();
+                .and_then(|f| f.get("original")) {
+                    Some(url) => url.as_str()
+                        .ok_or("url not found.")
+                        .map_err(|e| anyhow::Error::msg(e))?
+                        .to_string(),
+                    None => String::new()
+                };
+            
+            if !banner_url.is_empty() {
+                pictures.push(banner_url.clone());
+            }
+                
         }
 
     }
-    
-    if banner_url.is_empty(){
-        banner_url = thumbnail_url.clone();
-    }
-    
-
 
 
     let contextual: Vec<String> = vec!["Anime".to_string(), rating];
 
-    let pictures:Vec<String> = vec![thumbnail_url.clone(), banner_url.clone()];
+    
 
     let eps_ele = vis.find(".SimklTVEpisodesBlock")
         .find(".goEpisode");
