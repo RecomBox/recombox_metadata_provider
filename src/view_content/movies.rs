@@ -64,8 +64,16 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
     let url = format!("https://simkl.com/movies{}", decode(id)?);
 
 
-    let raw_title = vis.find(".SimklTVAboutTitleText")
-        .find(".headDetail").text();
+    let h2_raw_title = vis.find(".SimklTVAboutTitleText")
+        .find("h2.headDetail").text();
+
+    let h1_raw_title = vis.find(".SimklTVAboutTitleText")
+        .find("h1.headDetail").text();
+
+    let raw_title = match h2_raw_title.is_empty() {
+        true => h1_raw_title,
+        false => h2_raw_title
+    };
 
     let title = decode_html_entities(&raw_title.trim()).to_string();
 

@@ -33,7 +33,7 @@ mod tests {
     async fn view_content() {
         use crate::view_content;
 
-        let result = view_content::new(&crate::global_types::Source::Anime, "%2F2650258%2Fgnosia").await.unwrap();
+        let result = view_content::new(&crate::global_types::Source::Anime, "%2F2969868%2Ftensei-shitara-slime-datta-ken").await.unwrap();
         
         // let result = view_content::new(&crate::global_types::Source::Movies, "%2F53906%2Fspider-man").await.unwrap();
         
