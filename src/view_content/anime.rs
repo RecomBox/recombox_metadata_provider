@@ -56,13 +56,12 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
     let h1_raw_title = vis.find(".SimklTVAboutTitleText")
         .find("h1.headDetail").text();
 
-    let raw_title = match h2_raw_title.is_empty() {
+    let raw_title = match decode_html_entities(h2_raw_title.trim()).is_empty() {
         true => h1_raw_title,
         false => h2_raw_title
     };
 
     let title = decode_html_entities(&raw_title.trim()).to_string();
-
 
 
     let mut raw_description = vis.find(".SimklTVAboutDetailsText")
