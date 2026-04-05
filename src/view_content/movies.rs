@@ -83,11 +83,12 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
 
     let raw_trailer_id = vis.find(".liteYoutube")
-        .attr("id")
-        .ok_or(anyhow::Error::msg("Trailer id not found"))?
-        .to_string();
+        .attr("id");
 
-    let trailer_url = format!("https://www.youtube.com/embed/{}?autoplay=1&vq=highres", raw_trailer_id);
+    let trailer_url = match raw_trailer_id {
+        Some(id) => format!("https://www.youtube.com/embed/{}?autoplay=1&vq=highres", id),
+        None => String::from("")
+    };
 
 
 
