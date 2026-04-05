@@ -104,7 +104,7 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
         }
     }
 
-    let banner_url;
+    let mut banner_url= String::new();
 
     if !mal_id.is_empty() {
         let res = client.get(format!("https://kitsu.io/api/edge/mappings?filter[externalSite]=myanimelist/anime&filter[externalId]={}", mal_id))
@@ -113,63 +113,57 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
         let data: Value = res.json().await?;
 
-        let kitsu_map_id = data.get("data")
-            .ok_or("kitsu_map_id not found.")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .as_array()
-            .ok_or("kitsu_map_id not found.")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .get(0)
-            .ok_or("kitsu_map_id not found.")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .get("id")
-            .ok_or("kitsu_map_id not found.")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .as_str()
-            .ok_or("kitsu_map_id not found.")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .to_string();
+        let kitsu_map_id: Option<String> = data.get("data")
+            .and_then(|v| v.as_array())
+            .and_then(|arr| arr.get(0))
+            .and_then(|v| v.get("id"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
 
+        if let Some(kitsu_id) = kitsu_map_id {
+            let res = client.get(format!("https://kitsu.io/api/edge/mappings/{}/relationships/item", kitsu_id))
+                .send()
+                .await?;
 
-        let res = client.get(format!("https://kitsu.io/api/edge/mappings/{}/relationships/item", kitsu_map_id))
-            .send()
-            .await?;
+            let data: Value = res.json().await?;
 
-        let data: Value = res.json().await?;
+            let kitsu_id = data.get("data")
+                .ok_or("kitsu_id not found.")
+                .map_err(|e| anyhow::Error::msg(e))?
+                .get("id")
+                .ok_or("kitsu_id not found.")
+                .map_err(|e| anyhow::Error::msg(e))?
+                .as_str()
+                .ok_or("kitsu_id not found.")
+                .map_err(|e| anyhow::Error::msg(e))?
+                .to_string();
 
-        let kitsu_id = data.get("data")
-            .ok_or("kitsu_id not found.")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .get("id")
-            .ok_or("kitsu_id not found.")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .as_str()
-            .ok_or("kitsu_id not found.")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .to_string();
+                
 
-            
+            let res = client.get(format!("https://kitsu.io/api/edge/anime/{}", kitsu_id))
+                .send()
+                .await?;
 
-        let res = client.get(format!("https://kitsu.io/api/edge/anime/{}", kitsu_id))
-            .send()
-            .await?;
+            let data: Value = res.json().await?;
 
-        let data: Value = res.json().await?;
+            banner_url = data.get("data")
+                .and_then(|f| f.get("attributes"))
+                .and_then(|f| f.get("coverImage"))
+                .and_then(|f| f.get("original"))
+                .ok_or("banner url not found from kitsu")
+                .map_err(|e| anyhow::Error::msg(e))?
+                .as_str()
+                .ok_or("banner url not found from kitsu")
+                .map_err(|e| anyhow::Error::msg(e))?
+                .to_string();
+        }
 
-        banner_url = data.get("data")
-            .and_then(|f| f.get("attributes"))
-            .and_then(|f| f.get("coverImage"))
-            .and_then(|f| f.get("original"))
-            .ok_or("banner url not found from kitsu")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .as_str()
-            .ok_or("banner url not found from kitsu")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .to_string();
-
-    }else{
+    }
+    
+    if banner_url.is_empty(){
         banner_url = thumbnail_url.clone();
     }
+    
 
 
 
