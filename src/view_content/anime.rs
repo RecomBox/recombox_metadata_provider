@@ -8,7 +8,6 @@ use visdom::Vis;
 use fake_user_agent;
 use html_escape::decode_html_entities;
 use urlencoding::decode;
-use regex::Regex;
 
 
 
@@ -105,7 +104,7 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
         }
     }
 
-    let mut banner_url = String::from("");
+    let banner_url;
 
     if !mal_id.is_empty() {
         let res = client.get(format!("https://kitsu.io/api/edge/mappings?filter[externalSite]=myanimelist/anime&filter[externalId]={}", mal_id))
@@ -241,6 +240,7 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
 
     let new_view_content_info = ViewContentInfo { 
+        external_id: mal_id,
         url,
         title,
         contextual,

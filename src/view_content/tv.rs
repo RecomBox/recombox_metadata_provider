@@ -123,23 +123,23 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
     let mut pictures: Vec<String> = vec![banner_url.clone()];
 
-    if !imdb_id.is_empty() {
-        let mut new_headers = HeaderMap::new();
-        new_headers.insert(USER_AGENT, HeaderValue::from_str(fake_user_agent::get_chrome_rua())?);
-        new_headers.insert(ORIGIN, HeaderValue::from_str("https://www.imdb.com")?);
-        new_headers.insert(REFERER, HeaderValue::from_str("https://www.imdb.com/")?);
+    // if !imdb_id.is_empty() {
+    //     let mut new_headers = HeaderMap::new();
+    //     new_headers.insert(USER_AGENT, HeaderValue::from_str(fake_user_agent::get_chrome_rua())?);
+    //     new_headers.insert(ORIGIN, HeaderValue::from_str("https://www.imdb.com")?);
+    //     new_headers.insert(REFERER, HeaderValue::from_str("https://www.imdb.com/")?);
 
-        let res = client.get(format!("https://www.imdb.com/title/{}/mediaindex/?contentTypes=still_frame", imdb_id))
-            .headers(new_headers)
-            .send()
-            .await?;
+    //     let res = client.get(format!("https://www.imdb.com/title/{}/mediaindex/?contentTypes=still_frame", imdb_id))
+    //         .headers(new_headers)
+    //         .send()
+    //         .await?;
 
-        let html = res.text().await?;
+    //     let html = res.text().await?;
 
-        let vis = Vis::load(&html)
-            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    //     let vis = Vis::load(&html)
+    //         .map_err(|e| anyhow::Error::msg(e.to_string()))?;
 
-    }
+    // }
 
     pictures.push(thumbnail_url.clone());
 
@@ -226,6 +226,7 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
 
     let new_view_content_info = ViewContentInfo { 
+        external_id: imdb_id,
         url,
         title,
         contextual,

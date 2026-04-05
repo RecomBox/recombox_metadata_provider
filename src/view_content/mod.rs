@@ -14,6 +14,7 @@ pub struct EpisodeInfo {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ViewContentInfo {
+    pub external_id: String,
     pub url: String,
     pub title: String,
     pub thumbnail_url: String,
