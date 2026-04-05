@@ -35,24 +35,8 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
     let vis = Vis::load(&html)
         .map_err(|e| anyhow::Error::msg(e.to_string()))?;
 
-    // -> Extract Banner URL
-    // Don't ask me how it work. I had no idea too.
-    let mut banner_url = String::new();
-    {
-        let class_re = Regex::new(r#"\.SimklLoginBg2\s*\{[^}]*\}"#).unwrap();
-        if let Some(class_block) = class_re.find(&html) {
-            let css = class_block.as_str();
-            let url_re = Regex::new(r#"background-image\s*:\s*url\(['"]?(?P<url>[^'")]+)['"]?\)"#).unwrap();
-            if let Some(caps) = url_re.captures(css) {
-                let mut url = caps["url"].to_string();
-                if url.starts_with("//") {
-                    url = format!("https://wsrv.nl/?url=https:{}", url);
-                }
-                banner_url = url;
-            }
-        }
-    }
-    // <-
+    
+
 
     let raw_thumbnail = vis.find(".SimklTVDetailPoster")
         .find("#detailPosterImg")
@@ -121,6 +105,7 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
         }
     }
 
+    let mut banner_url = String::from("");
 
     if !mal_id.is_empty() {
         let res = client.get(format!("https://kitsu.io/api/edge/mappings?filter[externalSite]=myanimelist/anime&filter[externalId]={}", mal_id))
@@ -172,6 +157,19 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
         let data: Value = res.json().await?;
 
+        banner_url = data.get("data")
+            .and_then(|f| f.get("attributes"))
+            .and_then(|f| f.get("coverImage"))
+            .and_then(|f| f.get("original"))
+            .ok_or("banner url not found from kitsu")
+            .map_err(|e| anyhow::Error::msg(e))?
+            .as_str()
+            .ok_or("banner url not found from kitsu")
+            .map_err(|e| anyhow::Error::msg(e))?
+            .to_string();
+
+    }else{
+        banner_url = thumbnail_url.clone();
     }
 
 

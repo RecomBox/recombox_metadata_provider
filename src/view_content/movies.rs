@@ -137,23 +137,6 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
         let vis = Vis::load(&html)
             .map_err(|e| anyhow::Error::msg(e.to_string()))?;
 
-        let banner_ele_li = vis.find(".ipc-page-section").find(".TlTHB")
-            .find(".ipc-media").find(".ipc-image");
-
-        for banner_ele in banner_ele_li {
-            let url = match banner_ele.get_attribute("src") {
-                Some(raw_url) => {
-                    let raw_url = raw_url.to_string();
-                    let parsed_url = raw_url.split("_V1_").nth(0)
-                        .ok_or(anyhow::Error::msg("Mal url found"))?
-                        .to_string();
-                    format!("{}_V1_.jpg", parsed_url)
-                },
-                None => continue
-            };
-            pictures.push(url);
-        }
-
     }
 
     pictures.push(thumbnail_url.clone());
