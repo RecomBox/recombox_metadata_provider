@@ -33,9 +33,9 @@ mod tests {
     async fn view_content() {
         use crate::view_content;
 
-        // let result = view_content::new(&crate::global_types::Source::Anime, "%2F2647204%2Ftoumei-otoko-to-ningen-onna-sonouchi-fuufu-ni-naru-futari").await.unwrap();
+        let result = view_content::new(&crate::global_types::Source::Anime, "%2F2650258%2Fgnosia").await.unwrap();
         
-        let result = view_content::new(&crate::global_types::Source::Movies, "%2F53906%2Fspider-man").await.unwrap();
+        // let result = view_content::new(&crate::global_types::Source::Movies, "%2F53906%2Fspider-man").await.unwrap();
         
         // let result = view_content::new(&crate::global_types::Source::TV, "%2F2416005%2Fthe-pitt").await.unwrap();
 
