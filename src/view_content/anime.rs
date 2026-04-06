@@ -80,7 +80,7 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
         .attr("id");
 
     let trailer_url = match raw_trailer_id {
-        Some(id) => format!("https://www.youtube.com/watch?v={}", id),
+        Some(id) => format!("https://www.youtube.com/watch?v={}&autoplay=1&vq=highres", id),
         None => String::from("")
     };
 
