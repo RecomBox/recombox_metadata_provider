@@ -4,7 +4,6 @@ use reqwest::{
 };
 use visdom::Vis;
 use regex::Regex;
-use fake_user_agent;
 use urlencoding::encode;
 
 
@@ -13,7 +12,7 @@ use super::{FeaturedContent, FeaturedContentInfo};
 pub async fn new() -> anyhow::Result<FeaturedContent, anyhow::Error> {
 
     let mut new_headers = HeaderMap::new();
-    new_headers.insert(USER_AGENT, HeaderValue::from_str(fake_user_agent::get_chrome_rua())?);
+    new_headers.insert(USER_AGENT, HeaderValue::from_str("PostmanRuntime/7.53.0")?);
 
     let client = Client::new();
     let res = client.get("https://simkl.com/anime/")

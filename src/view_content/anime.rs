@@ -5,7 +5,6 @@ use reqwest::{
 };
 use serde_json::{Value};
 use visdom::Vis;
-use fake_user_agent;
 use html_escape::decode_html_entities;
 use urlencoding::decode;
 
@@ -16,7 +15,7 @@ use super::{ViewContentInfo, EpisodeInfo};
 pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
     let mut new_headers = HeaderMap::new();
-    new_headers.insert(USER_AGENT, HeaderValue::from_str(fake_user_agent::get_chrome_rua())?);
+    new_headers.insert(USER_AGENT, HeaderValue::from_str("PostmanRuntime/7.53.0")?);
     new_headers.insert(ORIGIN, HeaderValue::from_str("https://simkl.com")?);
     new_headers.insert(REFERER, HeaderValue::from_str("https://simkl.com/")?);
 

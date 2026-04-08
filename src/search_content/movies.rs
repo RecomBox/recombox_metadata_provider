@@ -5,7 +5,6 @@ use reqwest::{
     header::{HeaderMap, HeaderValue, USER_AGENT, ORIGIN, REFERER},
     multipart::{Form}
 };
-use fake_user_agent;
 use serde_json::{Value};
 use urlencoding::encode;
 use indexmap::IndexMap;
@@ -21,7 +20,7 @@ pub async fn new(
 ) -> anyhow::Result<SearchContent, anyhow::Error> {
 
     let mut new_headers = HeaderMap::new();
-    new_headers.insert(USER_AGENT, HeaderValue::from_str(fake_user_agent::get_chrome_rua())?);
+    new_headers.insert(USER_AGENT, HeaderValue::from_str("PostmanRuntime/7.53.0")?);
     new_headers.insert(ORIGIN, HeaderValue::from_str("https://simkl.com")?);
     new_headers.insert(REFERER, HeaderValue::from_str("https://simkl.com/")?);
 

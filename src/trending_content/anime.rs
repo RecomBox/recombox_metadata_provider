@@ -5,7 +5,6 @@ use reqwest::{
     multipart::{Form}
 };
 use visdom::Vis;
-use fake_user_agent;
 use html_escape::decode_html_entities;
 use urlencoding::encode;
 
@@ -14,7 +13,7 @@ use super::{TrendingContent, TrendingContentInfo};
 pub async fn new() -> anyhow::Result<TrendingContent, anyhow::Error> {
 
     let mut new_headers = HeaderMap::new();
-    new_headers.insert(USER_AGENT, HeaderValue::from_str(fake_user_agent::get_chrome_rua())?);
+    new_headers.insert(USER_AGENT, HeaderValue::from_str("PostmanRuntime/7.53.0")?);
     new_headers.insert(ORIGIN, HeaderValue::from_str("https://simkl.com")?);
     new_headers.insert(REFERER, HeaderValue::from_str("https://simkl.com/")?);
 
