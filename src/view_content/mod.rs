@@ -17,6 +17,7 @@ pub struct ViewContentInfo {
     pub external_id: String,
     pub url: String,
     pub title: String,
+    pub title_secondary: String,
     pub thumbnail_url: String,
     pub banner_url: String,
     pub contextual: Vec<String>,

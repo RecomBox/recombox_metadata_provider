@@ -49,19 +49,22 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
     let url = format!("https://simkl.com/anime{}", decode(id)?);
 
 
-    let h2_raw_title = vis.find(".SimklTVAboutTitleText")
+    let primary_raw_title = vis.find(".SimklTVAboutTitleText")
         .find("h2.headDetail").text();
 
-    let h1_raw_title = vis.find(".SimklTVAboutTitleText")
+    let secondary_raw_title = vis.find(".SimklTVAboutTitleText")
         .find("h1.headDetail").text();
 
-    let raw_title = match decode_html_entities(h2_raw_title.trim()).is_empty() {
-        true => h1_raw_title,
-        false => h2_raw_title
+    let title = match decode_html_entities(primary_raw_title.trim()).is_empty() {
+        true => decode_html_entities(&secondary_raw_title.trim()).to_string(),
+        false => decode_html_entities(&primary_raw_title.trim()).to_string()
     };
-
-    let title = decode_html_entities(&raw_title.trim()).to_string();
-
+    
+    let title_secondary = match decode_html_entities(secondary_raw_title.trim()).is_empty() {
+        true => String::from(""),
+        false => decode_html_entities(&secondary_raw_title.trim()).to_string()
+    };
+    
 
     let mut raw_description = vis.find(".SimklTVAboutDetailsText")
         .find(".full-text").text();
@@ -243,6 +246,7 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
         external_id: mal_id,
         url,
         title,
+        title_secondary,
         contextual,
         description,
         trailer_url,
