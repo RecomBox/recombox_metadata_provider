@@ -36,11 +36,12 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
     
 
 
-    let raw_thumbnail = vis.find(".SimklTVDetailPoster")
+    let raw_thumbnail = match vis.find(".SimklTVDetailPoster")
         .find("#detailPosterImg")
-        .attr("src")
-        .ok_or(anyhow::Error::msg("Thumbnail not found"))?
-        .to_string();
+        .attr("src") {
+            Some(url) => url.to_string(),
+            None => String::from("")
+        };
 
     let thumbnail_url = format!("https://wsrv.nl/?url=https:{}", raw_thumbnail);
 
