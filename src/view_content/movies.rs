@@ -9,6 +9,8 @@ use urlencoding::decode;
 use regex::Regex;
 
 
+use crate::view_content::ExternalID;
+
 use super::{ViewContentInfo, EpisodeInfo};
 
 pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
@@ -157,9 +159,13 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
     let contextual: Vec<String> = vec!["Movies".to_string(), rating];
 
+    let external_id = ExternalID {
+        imdb: Some(imdb_id),
+        ..ExternalID::default()
+    };
         
     let new_view_content_info = ViewContentInfo { 
-        external_id: imdb_id,
+        external_id,
         url,
         title,
         title_secondary,

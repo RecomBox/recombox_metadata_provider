@@ -6,15 +6,10 @@ mod tv;
 use serde::{Deserialize, Serialize};
 use crate::global_types::{Source};
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct EpisodeInfo {
-    pub title: String,
-    pub thumbnail_url: String
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ViewContentInfo {
-    pub external_id: String,
+    pub external_id: ExternalID,
     pub url: String,
     pub title: String,
     pub title_secondary: String,
@@ -28,6 +23,22 @@ pub struct ViewContentInfo {
     pub episodes: Vec<Vec<EpisodeInfo>> // Seasons -> Episodes
     
 }
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct ExternalID {
+    pub mal: Option<String>,
+    pub kitsu: Option<String>,
+    pub imdb: Option<String>
+}
+
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EpisodeInfo {
+    pub title: String,
+    pub thumbnail_url: String
+}
+
+
 
 
 

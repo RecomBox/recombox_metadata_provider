@@ -10,7 +10,7 @@ use urlencoding::decode;
 
 
 
-use super::{ViewContentInfo, EpisodeInfo};
+use super::{ViewContentInfo, EpisodeInfo, ExternalID};
 
 pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
@@ -22,8 +22,62 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
 
     let client = Client::new();
 
+    // -> Extract Links
+    let res = client.get(format!("https://simkl.com/anime{}/", decode(id)?))
+        .headers(new_headers.clone())
+        .send()
+        .await?;
+
+    let html = res.text().await?;
+
+    let vis = Vis::load(&html)
+        .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+
+    let links_ele = vis.find(".SimklTVAboutTabsDetailsLinks");
+
+    let kitsu_ele = links_ele.find("a:contains(Kitsu)");
+
+    let kitsu_url = kitsu_ele.attr("href")
+        .ok_or(anyhow::anyhow!("Failed to find kitsu id"))?
+        .to_string();
+
+    let kitsu_id = kitsu_url.split("/").last()
+        .ok_or(anyhow::anyhow!("Failed to find kitsu id"))?
+        .to_string();
+
+    let mal_url = links_ele.find("a:contains(MAL)").attr("href")
+        .ok_or(anyhow::anyhow!("Failed to find kitsu id"))?
+        .to_string();
+
+    let mal_url_split: Vec<&str> = mal_url.split("/").into_iter().collect();
+
+    let mal_id = mal_url_split.get(mal_url_split.len() - 2).unwrap_or(&"")
+        .to_string();
+
+    let imdb_url = links_ele.find("a:contains(IMDB)").attr("href")
+        .ok_or(anyhow::anyhow!("Failed to find kitsu id"))?
+        .to_string();
+
+    let imdb_url_split: Vec<&str> = imdb_url.split("/").into_iter().collect();
+
+    let imdb_id = imdb_url_split.get(imdb_url_split.len() - 2).unwrap_or(&"")
+        .to_string();
+
+
+    let external_id = ExternalID {
+        mal: Some(mal_id),
+        kitsu: Some(kitsu_id),
+        imdb: Some(imdb_id),
+        ..ExternalID::default()
+    };
+
+
+    // <- 
+
+
+
     let res = client.get(format!("https://simkl.com/anime{}/episodes/", decode(id)?))
-        .headers(new_headers)
+        .headers(new_headers.clone())
         .send()
         .await?;
     
@@ -93,86 +147,34 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
     let rating = format!("Rating: {}", rating_container_ele.find(".SimklTVRatingAverage").text());
 
 
-
-    let mut mal_id: String = String::from("");
-    
-
-    let a_ele = vis.find(".SimklTVAboutRatingBorder").find("a");
-    
-    for ele in a_ele {
-
-        let mal_url = match ele.get_attribute("href") {
-            Some(url) => url.to_string(),
-            None => continue
-        };
-
-        if mal_url.contains("myanimelist") {
-            mal_id = mal_url.split("/").nth(4)
-                .ok_or(anyhow::Error::msg("Mal id not found"))?
-                .to_string();
-            break;
-        }
-    }
-
     let mut pictures:Vec<String> = vec![thumbnail_url.clone()];
 
     let mut banner_url= String::new();
 
-    if !mal_id.is_empty() {
-        let res = client.get(format!("https://kitsu.io/api/edge/mappings?filter[externalSite]=myanimelist/anime&filter[externalId]={}", mal_id))
+    if let Some(kitsu_id) = &external_id.kitsu {
+            
+        let res = client.get(format!("https://kitsu.io/api/edge/anime/{}", kitsu_id))
             .send()
             .await?;
 
         let data: Value = res.json().await?;
 
-        let kitsu_map_id: Option<String> = data.get("data")
-            .and_then(|v| v.as_array())
-            .and_then(|arr| arr.get(0))
-            .and_then(|v| v.get("id"))
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-
-
-        if let Some(kitsu_id) = kitsu_map_id {
-            let res = client.get(format!("https://kitsu.io/api/edge/mappings/{}/relationships/item", kitsu_id))
-                .send()
-                .await?;
-
-            let data: Value = res.json().await?;
-
-            let kitsu_id = data.get("data")
-                .ok_or("kitsu_id not found.")
-                .map_err(|e| anyhow::Error::msg(e))?
-                .get("id")
-                .ok_or("kitsu_id not found.")
-                .map_err(|e| anyhow::Error::msg(e))?
-                .as_str()
-                .ok_or("kitsu_id not found.")
-                .map_err(|e| anyhow::Error::msg(e))?
-                .to_string();
-                
-            let res = client.get(format!("https://kitsu.io/api/edge/anime/{}", kitsu_id))
-                .send()
-                .await?;
-
-            let data: Value = res.json().await?;
-
-            banner_url = match data.get("data")
-                .and_then(|f| f.get("attributes"))
-                .and_then(|f| f.get("coverImage"))
-                .and_then(|f| f.get("original")) {
-                    Some(url) => url.as_str()
-                        .ok_or("url not found.")
-                        .map_err(|e| anyhow::Error::msg(e))?
-                        .to_string(),
-                    None => String::new()
-                };
-            
-            if !banner_url.is_empty() {
-                pictures.push(banner_url.clone());
-            }
-                
+        banner_url = match data.get("data")
+            .and_then(|f| f.get("attributes"))
+            .and_then(|f| f.get("coverImage"))
+            .and_then(|f| f.get("original")) {
+                Some(url) => url.as_str()
+                    .ok_or("url not found.")
+                    .map_err(|e| anyhow::Error::msg(e))?
+                    .to_string(),
+                None => String::new()
+            };
+        
+        if !banner_url.is_empty() {
+            pictures.push(banner_url.clone());
         }
+                
+        
 
     }
 
@@ -238,13 +240,11 @@ pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
         
     }
 
-
-
-
+    
 
 
     let new_view_content_info = ViewContentInfo { 
-        external_id: mal_id,
+        external_id,
         url,
         title,
         title_secondary,
