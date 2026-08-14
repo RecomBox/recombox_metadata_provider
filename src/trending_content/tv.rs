@@ -19,16 +19,18 @@ pub async fn new(params: &TrendingContentParams) -> anyhow::Result<Vec<TrendingC
 		.header("accept", "application/json")
 		.header("Authorization", format!("Bearer {}", params.tmdb_token))
 		.send()
-		.await;
+		.await?;
 
-	
+	if !res.status().is_success(){
+		return Err(anyhow!("request failed: {}", res.status()));
+	}
 
-	let res_data = res?
+	let res_data = res
 		.json::<serde_json::Value>()
 		.await?;
 
 	let item_list = res_data.get("results")
-		.ok_or(anyhow!(format!("results not exist: {}", res_data)))?
+		.ok_or(anyhow!("results not exist"))?
 		.as_array()
 		.ok_or(anyhow!("results not an array"))?;
 

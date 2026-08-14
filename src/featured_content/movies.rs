@@ -19,9 +19,13 @@ pub async fn new(params: &FeaturedContentParams) -> anyhow::Result<Vec<FeaturedC
 		.header("accept", "application/json")
 		.header("Authorization", format!("Bearer {}", params.tmdb_token))
 		.send()
-		.await;
+		.await?;
 
-	let res_data = res?
+	if !res.status().is_success(){
+		return Err(anyhow!("request failed: {}", res.status()));
+	}
+
+	let res_data = res
 		.json::<serde_json::Value>()
 		.await?;
 	let item_list = res_data.get("results")

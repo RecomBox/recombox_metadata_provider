@@ -14,11 +14,17 @@ pub async fn new(params: &ViewContentParams) -> anyhow::Result<ViewContentInfo, 
 	let client = reqwest::Client::new();
   let res = client.get(url)
     .send()
-    .await;
+    .await?;
 
-  let res_data = res?
+  if !res.status().is_success(){
+		return Err(anyhow!("request failed: {}", res.status()));
+	}
+
+  let res_data = res
     .json::<serde_json::Value>()
     .await?;
+
+  
 
 
   let item = res_data.get("data")

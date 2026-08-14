@@ -23,9 +23,13 @@ pub async fn new(params: &SearchContentParams) -> anyhow::Result<Vec<SearchConte
   let res = client.get(url)
     .query(&query)
     .send()
-    .await;
+    .await?;
 
-  let res_data = res?
+  if !res.status().is_success(){
+		return Err(anyhow!("request failed: {}", res.status()));
+	}
+
+  let res_data = res
     .json::<serde_json::Value>()
     .await?;
 
