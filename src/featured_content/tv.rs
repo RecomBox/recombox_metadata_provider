@@ -1,67 +1,95 @@
-use reqwest::{
-    Client,
-    header::{HeaderMap, HeaderValue, USER_AGENT},
-};
-use visdom::Vis;
-use regex::Regex;
-use urlencoding::encode;
+use anyhow::anyhow;
 
-use super::{FeaturedContent, FeaturedContentInfo};
+use crate::featured_content::FeaturedContentParams;
 
+use super::{FeaturedContentInfo};
 
-pub async fn new() -> anyhow::Result<FeaturedContent, anyhow::Error> {
+pub async fn new(params: &FeaturedContentParams) -> anyhow::Result<Vec<FeaturedContentInfo>> {
+	let url = "https://api.themoviedb.org/3/tv/popular";
 
-    let mut new_headers = HeaderMap::new();
-    new_headers.insert(USER_AGENT, HeaderValue::from_str("PostmanRuntime/7.53.0")?);
+	let querystring = [
+		("language", "en-US"),
+		("page", "1"),
+	];
 
-    let client = Client::new();
-    let res = client.get("https://simkl.com/tv/")
-        .headers(new_headers)
-        .send()
-        .await?;
-    
-    let html = res.text().await?;
+	let client = reqwest::Client::new();
 
-    let mut new_featured_content = FeaturedContent(vec![]);
+	let res = client.get(url)
+		.query(&querystring)
+		.header("accept", "application/json")
+		.header("Authorization", format!("Bearer {}", params.tmdb_token))
+		.send()
+		.await;
 
+	let res_data = res?
+		.json::<serde_json::Value>()
+		.await?;
+	let item_list = res_data.get("results")
+		.ok_or(anyhow!("results not exist"))?
+		.as_array()
+		.ok_or(anyhow!("results not an array"))?;
 
-    let vis = Vis::load(html)
-        .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+	let mut result: Vec<FeaturedContentInfo> = Vec::new();
+	
 
-    for script in vis.find("script") {
-        let text: String = script.html();
+	for item in item_list{
+		let id = item.get("id")
+			.ok_or(anyhow!("id not exist"))?
+			.as_u64()
+			.ok_or(anyhow!("id not a number"))?
+			.to_string();
 
-        if text.contains("var artData =") {
-            let re = Regex::new(r"(?s)var\s+artData\s*=\s*(\[.*?\]);")?;
-            if let Some(cap) = re.captures(&text) {
-                let array_str = cap.get(1)
-                    .ok_or("array_str not found")
-                    .map_err(|e| anyhow::Error::msg(e.to_string()))?
-                    .as_str();
+		let title = item.get("original_name")
+			.ok_or(anyhow!("title not exist"))?
+			.as_str()
+			.ok_or(anyhow!("title not a string"))?;
 
-                let items: Vec<Vec<String>> = json5::from_str(&array_str)?;
+		let short_desc = item.get("overview")
+			.ok_or(anyhow!("overview not exist"))?
+			.as_str()
+			.ok_or(anyhow!("overview not a string"))?;
 
-                for item in items {
-                    let id = encode(&item[8]).to_string();
+		let banner_path = item.get("backdrop_path")
+			.ok_or(anyhow!("backdrop_path not exist"))?
+			.as_str()
+      .unwrap_or_default();
 
-                    let mut new_contextual: Vec<String> = vec![
-                        String::from("TV"),
-                        format!("Rating: {}", item[7]),
-                    ];
-                    new_contextual.retain(|i| !i.is_empty());
+		let banner_url = format!("https://image.tmdb.org/t/p/original{}", banner_path);
 
-                    new_featured_content.0.push(FeaturedContentInfo {
-                        id: id.to_string(),
-                        title: item[1].clone(),
-                        contextual: new_contextual,
-                        short_description: item[3].clone(),
-                        banner_url: format!("https://wsrv.nl/?url=https://simkl.in/fanart/{}_medium.webp", item[9]),
-                    });
-                }
-            }
-        }
-    }
+		// Contextual
+		let mut contextual: Vec<String> = Vec::new();
 
+		contextual.push(String::from("Movie"));
 
-    return Ok(new_featured_content);
+		let raw_rating = item.get("vote_average")
+			.ok_or(anyhow!("vote_average not exist"))?
+			.as_f64()
+			.ok_or(anyhow!("vote_average not a number"))?;
+			
+		let rating = (raw_rating * 100.0).round() / 100.0;
+
+		contextual.push(String::from(format!("Rating: {}", rating.to_string())));
+
+		contextual.push(String::from(
+			item.get("original_language")
+				.ok_or(anyhow!("original_language not exist"))?
+				.as_str()
+				.ok_or(anyhow!("original_language not a string"))?
+				.to_uppercase()
+		));
+		// <-
+
+		let data = FeaturedContentInfo{
+      source: params.source.clone(),
+			id: id,
+			title: title.to_string(),
+			short_description: short_desc.to_string(),
+			banner_url: banner_url,
+			contextual: contextual,
+		};
+
+		result.push(data);
+	}
+
+  return Ok(result);
 }

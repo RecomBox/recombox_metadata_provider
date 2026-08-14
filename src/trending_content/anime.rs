@@ -1,102 +1,127 @@
 
-use reqwest::{
-    Client,
-    header::{HeaderMap, HeaderValue, USER_AGENT, ORIGIN, REFERER},
-    multipart::{Form}
-};
-use visdom::Vis;
-use html_escape::decode_html_entities;
-use urlencoding::encode;
+use anyhow::anyhow;
+use chrono::{Datelike, NaiveDate};
 
-use super::{TrendingContent, TrendingContentInfo};
+use super::{TrendingContentInfo};
 
-pub async fn new() -> anyhow::Result<TrendingContent, anyhow::Error> {
+pub async fn new() -> anyhow::Result<Vec<TrendingContentInfo>, anyhow::Error> {
 
-    let mut new_headers = HeaderMap::new();
-    new_headers.insert(USER_AGENT, HeaderValue::from_str("PostmanRuntime/7.53.0")?);
-    new_headers.insert(ORIGIN, HeaderValue::from_str("https://simkl.com")?);
-    new_headers.insert(REFERER, HeaderValue::from_str("https://simkl.com/")?);
+	let url = format!("https://kitsu.io/api/edge/trending/anime");
 
-    let form_data = Form::new()
-        .text("action", "best")
-        .text("cat", "month")
-        .text("filt_tv", "0")
-        .text("offset", "0")
-        .text("async", "true")
-        .text("afilt_tv", "0")
-        .text("double", "0");
+	let client = reqwest::Client::new();
+  let res = client.get(url)
+    .send()
+    .await;
 
-    let client = Client::new();
-    let res = client.post("https://simkl.com/ajax/full/anime.php")
-        .headers(new_headers)
-        .multipart(form_data)
-        .send()
-        .await?;
+  let res_data = res?
+    .json::<serde_json::Value>()
+    .await?;
+
+  
+
+  let item_list = res_data.get("data")
+    .ok_or(anyhow!("data not exist"))?
+    .as_array()
+    .ok_or(anyhow!("data not an array"))?;
+
+  let mut result: Vec<TrendingContentInfo> = Vec::new();
+
+  for item in item_list{
+    let id = item.get("id")
+      .ok_or(anyhow!("id not exist"))?
+      .as_str()
+      .ok_or(anyhow!("id not a str"))?;
+
+    let attributes = item.get("attributes")
+      .ok_or(anyhow!("attributes not exist"))?
+      .as_object()
+      .ok_or(anyhow!("attributes not an object"))?;
+
+    let title = attributes.get("canonicalTitle")
+      .ok_or(anyhow!("canonicalTitle not exist"))?
+      .as_str()
+      .ok_or(anyhow!("canonicalTitle not a string"))?;
+
+    let poster_images_opt = attributes.get("posterImage")
+      .unwrap_or_default()
+      .as_object();
+
+    let poster_url = match poster_images_opt {
+      Some(poster_images) => {
+        poster_images.get("original")
+          .unwrap_or_default()
+          .as_str()
+          .unwrap_or_default()
+      },
+      None => "",
+    };
     
-    let html = res.text().await?;
+    let rating = match attributes.get("averageRating"){
+      Some(avg_rating) => {
+        println!("{:?}", avg_rating);
+        match avg_rating
+          .as_str()
+          .unwrap_or_default()
+          .parse::<f32>(){
+            Ok(raw_avg_rating) => {
+              format!("{:.2}", raw_avg_rating / 10.0)
+              
+            },
+            Err(_) => "".to_string(),
+          }
+      },
+      None => "".to_string(),
+    };
 
-    let vis = Vis::load(&html)
-        .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+		let start_date = attributes.get("startDate")
+      .ok_or(anyhow!("startDate not exist"))?
+      .as_str()
+      .ok_or(anyhow!("startDate not a string"))?;
 
-    let item_ele_list = vis.find(".SimklTVBestItems");
+    let start_year = NaiveDate::parse_from_str(start_date, "%Y-%m-%d")?.year()
+			.to_string();
 
-    let mut new_trending_content = TrendingContent(vec![]);
+    
+    let end_year = match attributes.get("endDate") {
+      Some(end_date_v) => {
+        match end_date_v.as_str(){
+          Some(end_date_str) => {
+            NaiveDate::parse_from_str(
+              end_date_str, 
+              "%Y-%m-%d"
+            )?.year().to_string()
+          },
+          None => "".to_string(),
+        }
+      },
+      None => "".to_string(),
+    };
 
-    for item_ele in item_ele_list {
-        let item_vis = Vis::load(item_ele.html())
-            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
-
-        let raw_title = item_vis.find(".SimklTVBestItemTitle").text();
-        let title = decode_html_entities(raw_title.trim()).to_string();
-
-
-        let raw_year = item_vis.find(".SimklTVAboutYearCountry")
-            .find(".detailYearInfo").text();
-
-        let year = decode_html_entities(raw_year.trim()).to_string();
-
-
-        let raw_rating = item_vis.find(".SimklTVBestIcoScore").get(0)
-            .ok_or("Can't find rating.")
-            .map_err(|e| anyhow::Error::msg(e.to_string()))?
-            .text();
-
-        let splited_rating = raw_rating.split("/").nth(0)
-            .ok_or("Can't find rating.")
-            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
-
-        let rating: f32 = decode_html_entities(splited_rating.trim()).to_string().parse()?;
-
-        let raw_id = item_vis.find(".SimklTVBestItemWraper")
-            .find("a")
-            .get(0)
-            .ok_or("Can't find id.")
-            .map_err(|e| anyhow::Error::msg(e.to_string()))?
-            .get_attribute("href")
-            .ok_or("Can't find id.")
-            .map_err(|e| anyhow::Error::msg(e.to_string()))?
-            .to_string()
-            .replace("/anime", "");
-
-        let id = encode(&raw_id).to_string();
+    let year = match end_year.is_empty() {
+      true => start_year,
+      false => {
+        if start_year == end_year {
+          start_year
+        } else {
+          format!("{} - {}", start_year, end_year)
+        }
+      },
+    };
 
 
-        let thumbnail_url = item_vis.find(".SimklTVBestItemWraper")
-            .find("a")
-            .find("img")
-            .get(0)
-            .ok_or("Can't find thumbnail.")
-            .map_err(|e| anyhow::Error::msg(e.to_string()))?
-            .get_attribute("src")
-            .ok_or("Can't find thumbnail.")
-            .map_err(|e| anyhow::Error::msg(e.to_string()))?
-            .to_string()
-            .replace("//", "https://");
+    let data = TrendingContentInfo{
+      id: id.to_string(),
+      title: title.to_string(),
+			rating: rating,
+			year,
+			thumbnail_url: poster_url.to_string(),
+      
+    };
 
-            
-        new_trending_content.0.push(TrendingContentInfo { title, year, rating, id, thumbnail_url });
-        
-    }
+    result.push(data);
+  }
 
-    return Ok(new_trending_content);
+  println!("{:?}", result);
+
+  return Ok(result);
 }

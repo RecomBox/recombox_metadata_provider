@@ -1,265 +1,225 @@
 
-use reqwest::{
-    Client,
-    header::{HeaderMap, HeaderValue, USER_AGENT, ORIGIN, REFERER}
-};
-use serde_json::{Value};
-use visdom::Vis;
-use html_escape::decode_html_entities;
-use urlencoding::decode;
+use anyhow::anyhow;
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Utc, TimeZone};
 
 
 
-use super::{ViewContentInfo, EpisodeInfo, ExternalID};
+use crate::view_content::ViewContentParams;
 
-pub async fn new(id: &str) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
+use super::{ViewContentInfo, ExternalID};
 
-    let mut new_headers = HeaderMap::new();
-    new_headers.insert(USER_AGENT, HeaderValue::from_str("PostmanRuntime/7.53.0")?);
-    new_headers.insert(ORIGIN, HeaderValue::from_str("https://simkl.com")?);
-    new_headers.insert(REFERER, HeaderValue::from_str("https://simkl.com/")?);
+pub async fn new(params: &ViewContentParams) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
+  let url = format!("https://kitsu.io/api/edge/anime/{}", params.id);
 
+	let client = reqwest::Client::new();
+  let res = client.get(url)
+    .send()
+    .await;
 
-    let client = Client::new();
-
-    // -> Extract Links
-    let res = client.get(format!("https://simkl.com/anime{}/", decode(id)?))
-        .headers(new_headers.clone())
-        .send()
-        .await?;
-
-    let html = res.text().await?;
-
-    let vis = Vis::load(&html)
-        .map_err(|e| anyhow::Error::msg(e.to_string()))?;
-
-    let links_ele = vis.find(".SimklTVAboutTabsDetailsLinks");
-
-    let kitsu_ele = links_ele.find("a:contains(Kitsu)");
-
-    let kitsu_url = kitsu_ele.attr("href")
-        .ok_or(anyhow::anyhow!("Failed to find kitsu id"))?
-        .to_string();
-
-    let kitsu_id = kitsu_url.split("/").last()
-        .ok_or(anyhow::anyhow!("Failed to find kitsu id"))?
-        .to_string();
-
-    let mal_url = links_ele.find("a:contains(MAL)").attr("href")
-        .ok_or(anyhow::anyhow!("Failed to find kitsu id"))?
-        .to_string();
-
-    let mal_url_split: Vec<&str> = mal_url.split("/").into_iter().collect();
-
-    let mal_id = mal_url_split.get(mal_url_split.len() - 2).unwrap_or(&"")
-        .to_string();
-
-    let imdb_url = links_ele.find("a:contains(IMDB)").attr("href")
-        .ok_or(anyhow::anyhow!("Failed to find kitsu id"))?
-        .to_string();
-
-    let imdb_url_split: Vec<&str> = imdb_url.split("/").into_iter().collect();
-
-    let imdb_id = imdb_url_split.get(imdb_url_split.len() - 2).unwrap_or(&"")
-        .to_string();
+  let res_data = res?
+    .json::<serde_json::Value>()
+    .await?;
 
 
-    let external_id = ExternalID {
-        mal: Some(mal_id),
-        kitsu: Some(kitsu_id),
-        imdb: Some(imdb_id),
-        ..ExternalID::default()
-    };
+  let item = res_data.get("data")
+    .ok_or(anyhow!("data not exist"))?
+    .as_object()
+    .ok_or(anyhow!("data not an object"))?;
 
 
-    // <- 
+  let attributes = item.get("attributes")
+    .ok_or(anyhow!("attributes not exist"))?
+    .as_object()
+    .ok_or(anyhow!("attributes not an object"))?;
 
+  let title = attributes.get("canonicalTitle")
+    .ok_or(anyhow!("canonicalTitle not exist"))?
+    .as_str()
+    .ok_or(anyhow!("canonicalTitle not a string"))?;
 
+  let description = attributes.get("description")
+    .ok_or(anyhow!("description not exist"))?
+    .as_str()
+    .ok_or(anyhow!("description not a string"))?;
 
-    let res = client.get(format!("https://simkl.com/anime{}/episodes/", decode(id)?))
-        .headers(new_headers.clone())
-        .send()
-        .await?;
-    
-    let html = res.text().await?;
+  let cover_images_opt = attributes.get("coverImage")
+    .unwrap_or_default()
+    .as_object();
 
+  let banner_url = match cover_images_opt {
+    Some(cover_images) => {
+      cover_images.get("original")
+        .unwrap_or_default()
+        .as_str()
+        .unwrap_or_default()
+    },
+    None => "",
+  };
 
-    let vis = Vis::load(&html)
-        .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+  let poster_images_opt = attributes.get("posterImage")
+    .unwrap_or_default()
+    .as_object();
 
-    
+  let poster_url = match poster_images_opt {
+    Some(poster_images) => {
+      poster_images.get("original")
+        .unwrap_or_default()
+        .as_str()
+        .unwrap_or_default()
+    },
+    None => "",
+  };
 
+  // Contextual
+  let mut contextual = Vec::new();
 
-    let raw_thumbnail = match vis.find(".SimklTVDetailPoster")
-        .find("#detailPosterImg")
-        .attr("src") {
-            Some(url) => url.to_string(),
-            None => String::from("")
-        };
-
-    let thumbnail_url = format!("https://wsrv.nl/?url=https:{}", raw_thumbnail);
-
-    
-
-    let url = format!("https://simkl.com/anime{}", decode(id)?);
-
-
-    let primary_raw_title = vis.find(".SimklTVAboutTitleText")
-        .find("h2.headDetail").text();
-
-    let secondary_raw_title = vis.find(".SimklTVAboutTitleText")
-        .find("h1.headDetail").text();
-
-    let title = match decode_html_entities(primary_raw_title.trim()).is_empty() {
-        true => decode_html_entities(&secondary_raw_title.trim()).to_string(),
-        false => decode_html_entities(&primary_raw_title.trim()).to_string()
-    };
-    
-    let title_secondary = match decode_html_entities(secondary_raw_title.trim()).is_empty() {
-        true => String::from(""),
-        false => decode_html_entities(&secondary_raw_title.trim()).to_string()
-    };
-    
-
-    let mut raw_description = vis.find(".SimklTVAboutDetailsText")
-        .find(".full-text").text();
-
-
-    if raw_description.is_empty() {
-        raw_description = vis.find(".SimklTVAboutDetailsText").text();
-    }
-
-    let description = decode_html_entities(&raw_description.trim()).to_string();
-
-
-
-    let raw_trailer_id = vis.find(".liteYoutube")
-        .attr("id");
-
-    let trailer_url = match raw_trailer_id {
-        Some(id) => format!("https://www.youtube.com/watch?v={}&autoplay=1&vq=highres", id),
-        None => String::from("")
-    };
-
-
-    let rating_container_ele = vis.find(".SimklTVAboutRatingBorder");
-
-    let rating = format!("Rating: {}", rating_container_ele.find(".SimklTVRatingAverage").text());
-
-
-    let mut pictures:Vec<String> = vec![thumbnail_url.clone()];
-
-    let mut banner_url= String::new();
-
-    if let Some(kitsu_id) = &external_id.kitsu {
-            
-        let res = client.get(format!("https://kitsu.io/api/edge/anime/{}", kitsu_id))
-            .send()
-            .await?;
-
-        let data: Value = res.json().await?;
-
-        banner_url = match data.get("data")
-            .and_then(|f| f.get("attributes"))
-            .and_then(|f| f.get("coverImage"))
-            .and_then(|f| f.get("original")) {
-                Some(url) => url.as_str()
-                    .ok_or("url not found.")
-                    .map_err(|e| anyhow::Error::msg(e))?
-                    .to_string(),
-                None => String::new()
-            };
-        
-        if !banner_url.is_empty() {
-            pictures.push(banner_url.clone());
+  contextual.push(String::from("Anime"));
+  
+  match attributes.get("averageRating"){
+    Some(avg_rating) => {
+      println!("{:?}", avg_rating);
+      match avg_rating
+        .as_str()
+        .unwrap_or_default()
+        .parse::<f32>(){
+          Ok(raw_avg_rating) => {
+            let rating = format!("{:.2}", raw_avg_rating / 10.0);
+            contextual.push(format!("Rating: {}",rating));
+          },
+          Err(_) => {},
         }
-                
-        
+    },
+    None => {},
+  }
 
-    }
+  
+
+  match attributes.get("ageRating") {
+    Some(age_rating) => contextual.push(age_rating.as_str().unwrap_or_default().to_string().to_uppercase()),
+    None => {},
+  }
+  match attributes.get("status") {
+    Some(d) => contextual.push(format!("{}", d.as_str().unwrap_or_default().to_string().to_uppercase())),
+    None => {},
+  }
+
+  // <-
+
+  let url = item.get("links")
+    .and_then(|f| f.get("self"))
+    .and_then(|f| f.as_str())
+    .unwrap_or_default();
+
+  let next_release = match attributes.get("nextRelease").and_then(|f| f.as_str()) {
+    Some(d) => {
+      // Parse into NaiveDate
+      let date = NaiveDate::parse_from_str(d, "%Y-%m-%d")
+          .expect("Invalid date format");
+
+      // Attach midnight time
+      let datetime = NaiveDateTime::new(date, NaiveTime::from_hms_opt(0, 0, 0).unwrap());
+
+      // Convert to UTC-aware DateTime
+      let utc_datetime = Utc.from_utc_datetime(&datetime);
+
+      // Get milliseconds since epoch
+      utc_datetime.timestamp_millis()
+    },
+    None => -1,
+  };
+
+  let ep_count = attributes.get("episodeCount")
+    .and_then(|f| f.as_u64())
+    .unwrap_or_default();
+
+  let pictures = [
+    banner_url.to_string(),
+    poster_url.to_string(),
+  ];
+
+  let yt_video_id = attributes.get("youtubeVideoId")
+    .and_then(|f| f.as_str())
+    .unwrap_or_default();
+
+  let yt_link = format!("https://www.youtube.com/watch?v={}", yt_video_id);
+
+  let external_id = get_external_ids(&params)
+    .await?;
+
+  let data = ViewContentInfo{
+
+    url: url.to_string(),
+    title: title.to_string(),
+    title_secondary: title.to_string(),
+    description: description.to_string(),
+    banner_url: banner_url.to_string(),
+    thumbnail_url: poster_url.to_string(),
+    contextual,
+    countdown: next_release,
+    episodes: [ep_count].to_vec(),
+    pictures: pictures.to_vec(),
+    trailer_url: yt_link.to_string(),
+    external_id,
+  };
 
 
-    let contextual: Vec<String> = vec!["Anime".to_string(), rating];
+  
+  return Ok(data);
+}
+
+
+async fn get_external_ids(params: &ViewContentParams) -> anyhow::Result<ExternalID>{
+
+  let url = format!("https://kitsu.io/api/edge/anime/{}/mappings", params.id);
+
+  let client = reqwest::Client::new();
+  let res = client.get(url)
+    .send()
+    .await;
+
+  let res_data = res?
+    .json::<serde_json::Value>()
+    .await?;
+
+  let data_li = res_data.get("data")
+    .ok_or(anyhow!("data not exist"))?
+    .as_array()
+    .ok_or(anyhow!("data not an array"))?;
+
+  let mut external_id = ExternalID::default();
+
+  for item in data_li {
+
+    let attributes = item.get("attributes")
+      .ok_or(anyhow!("attributes not exist"))?
+      .as_object()
+      .ok_or(anyhow!("attributes not an object"))?;
+
+    let external_site = attributes.get("externalSite")
+      .ok_or(anyhow!("externalSite not exist"))?
+      .as_str()
+      .ok_or(anyhow!("externalSite not a str"))?;
 
     
+    match external_site {
+      "thetvdb" => {
+        let id = attributes.get("externalId")
+          .and_then(|f| f.as_str())
+          .unwrap_or_default();
 
-    let eps_ele = vis.find(".SimklTVEpisodesBlock")
-        .find(".goEpisode");
+        external_id.thetvdb = Some(id.to_string());
+      },
+      "myanimelist/anime" => {
+        let id = attributes.get("externalId")
+          .and_then(|f| f.as_str())
+          .unwrap_or_default();
 
-    let mut episodes: Vec<EpisodeInfo> = vec![];
-
-    for ep_ele in eps_ele {
-        let ep_vis = Vis::load(ep_ele.html())
-            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
-
-        let ep_number = ep_vis.find(".SimklTVEpisodesEpNumber").text();
-        let ep_title = ep_vis.find(".SimklTVEpisodesEpTitle").text();
-
-        let episode_title = format!("{}: {}", decode_html_entities(ep_number.trim()), decode_html_entities(ep_title.trim()));
-
-        let ep_thumbnail = match ep_vis.find("img.lazy").attr("data-original")
-            .ok_or(anyhow::Error::msg("Ep thumbnail not found")) {
-                Ok(url) => format!("https://wsrv.nl/?url=https:{}", url),
-                Err(_) => "".to_string()
-            };
-
-        let new_ep_info = EpisodeInfo{
-            title: episode_title,
-            thumbnail_url: ep_thumbnail
-        };
-        episodes.push(new_ep_info);
-    }
-
-    let mut countdown: i64 = -1;
-
-    let res = client.get(format!("https://animecountdown.com{}", decode(id)?))
-        .send()
-        .await?;
-
-    let html = res.text().await?;
-
-    let cd_vis = Vis::load(&html)
-        .map_err(|e| anyhow::Error::msg(e.to_string()))?;
-
-    let cd_type_ele_li = cd_vis.find(".type-airing");
-
-    for cd_type_ele in cd_type_ele_li {
-        let cd_type_vis = Vis::load(cd_type_ele.html())
-            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
-
-        let cd_content = cd_type_vis.find("countdown-content-page-item-left-desc");
-
-        if !cd_content.text().to_lowercase().contains(&"Countdown to".to_lowercase()) {
-            continue;
-        }
-
-        countdown = match cd_content.find("span").attr("data-ts") {
-            Some(ts) => if ts.to_string().trim().is_empty() { 0 } else { ts.to_string().trim().parse()? },
-            None => 0
-        }
-        
-    }
-
-    
-
-
-    let new_view_content_info = ViewContentInfo { 
-        external_id,
-        url,
-        title,
-        title_secondary,
-        contextual,
-        description,
-        trailer_url,
-        thumbnail_url,
-        banner_url,
-        countdown,
-        pictures,
-        episodes: vec![episodes],
+        external_id.mal = Some(id.to_string());
+      }
+      _ => {}
     };
 
-    
-    
-    return Ok(new_view_content_info);
-    // return Err(anyhow::Error::msg("Not implemented"));
+  }
+
+  return Ok(external_id);
 }

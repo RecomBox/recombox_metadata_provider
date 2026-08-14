@@ -3,12 +3,12 @@ use anyhow::anyhow;
 use serde_json::Value;
 
 
-use crate::view_content::{ExternalID, ViewContentParams};
+use crate::view_content::{ ExternalID, ViewContentParams};
 
 use super::{ViewContentInfo};
 
 pub async fn new(params: &ViewContentParams) -> anyhow::Result<ViewContentInfo, anyhow::Error> {
-	let url = format!("https://api.themoviedb.org/3/tv/{}", params.id);
+	let url = format!("https://api.themoviedb.org/3/movie/{}", params.id);
 
 	let querystring = [
 		("language", "en-US"),
@@ -31,11 +31,15 @@ pub async fn new(params: &ViewContentParams) -> anyhow::Result<ViewContentInfo, 
 	let item = res_data.as_object()
 		.ok_or(anyhow!("results not an object"))?;
 	
-	let title = item.get("original_name")
+	let title = item.get("original_title")
 		.ok_or(anyhow!("title not exist"))?
 		.as_str()
 		.ok_or(anyhow!("title not a string"))?;
 
+	let secondary_title = item.get("title")
+		.ok_or(anyhow!("title not exist"))?
+		.as_str()
+		.ok_or(anyhow!("title not a string"))?;
 
 	let description = item.get("overview")
 		.ok_or(anyhow!("overview not exist"))?
@@ -50,9 +54,9 @@ pub async fn new(params: &ViewContentParams) -> anyhow::Result<ViewContentInfo, 
 	let banner_url = format!("https://image.tmdb.org/t/p/original{}", banner_path);
 
 	let poster_path = item.get("poster_path")
-    .ok_or(anyhow!("bposter_path not exist"))?
-    .as_str()
-    .unwrap_or_default();
+			.ok_or(anyhow!("bposter_path not exist"))?
+			.as_str()
+			.unwrap_or_default();
 
 	let poster_url = format!("https://image.tmdb.org/t/p/original{}", poster_path);
 		
@@ -125,36 +129,12 @@ pub async fn new(params: &ViewContentParams) -> anyhow::Result<ViewContentInfo, 
 		..Default::default()
 	};
 
-	let seasons_list = item.get("seasons")
-    .ok_or(anyhow!("seasons not exist"))?
-    .as_array()
-    .ok_or(anyhow!("seasons not an array"))?;
-
-  let mut episodes:Vec<u64> = Vec::new();
-
-  for item in seasons_list {
-    let season_number = item.get("season_number")
-      .ok_or(anyhow!("season_number not exist"))?
-      .as_u64()
-      .ok_or(anyhow!("season_number not a number"))?;
-
-    if season_number == 0 {
-      continue;
-    }
-
-    let ep_count = item.get("episode_count")
-      .ok_or(anyhow!("episode_count not exist"))?
-      .as_u64()
-      .ok_or(anyhow!("episode_count not a number"))?;
-
-    episodes.push(ep_count);
-  }
 
 	let data = ViewContentInfo{
 		url: url.to_string(),
 		external_id: external_id,
 		title: title.to_string(),
-		title_secondary: title.to_string(),
+		title_secondary: secondary_title.to_string(),
 		thumbnail_url: poster_url.to_string(),
 		banner_url: banner_url.to_string(),
 		contextual: contextual,
@@ -162,7 +142,7 @@ pub async fn new(params: &ViewContentParams) -> anyhow::Result<ViewContentInfo, 
 		description: description.to_string(),
 		pictures: pictures.to_vec(),
 		countdown: -1,
-		episodes,
+		episodes: vec![1],
 	};
 
 	return Ok(data);

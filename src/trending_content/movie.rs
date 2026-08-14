@@ -6,7 +6,7 @@ use crate::trending_content::TrendingContentParams;
 use super::{TrendingContentInfo};
 
 pub async fn new(params: &TrendingContentParams) -> anyhow::Result<Vec<TrendingContentInfo>, anyhow::Error> {
-	let url = "https://api.themoviedb.org/3/trending/tv/week";
+	let url = "https://api.themoviedb.org/3/trending/movie/week";
 
 	let querystring = [
 		("language", "en-US"),
@@ -39,7 +39,7 @@ pub async fn new(params: &TrendingContentParams) -> anyhow::Result<Vec<TrendingC
 			.ok_or(anyhow!("id not a number"))?
 			.to_string();
 
-		let title = item.get("original_name")
+		let title = item.get("original_title")
 			.ok_or(anyhow!("title not exist"))?
 			.as_str()
 			.ok_or(anyhow!("title not a string"))?;
@@ -51,7 +51,7 @@ pub async fn new(params: &TrendingContentParams) -> anyhow::Result<Vec<TrendingC
 
 		let poster_url = format!("https://image.tmdb.org/t/p/original{}", poster_path);
 
-		let release_date = item.get("first_air_date")
+		let release_date = item.get("release_date")
 			.ok_or(anyhow!("release_date not exist"))?
 			.as_str()
 			.ok_or(anyhow!("release_date not a string"))?;

@@ -1,69 +1,122 @@
-use reqwest::{
-    Client,
-    header::{HeaderMap, HeaderValue, USER_AGENT},
-};
-use visdom::Vis;
-use regex::Regex;
-use urlencoding::encode;
+use anyhow::anyhow;
+use chrono::{Datelike, Utc};
 
+use crate::featured_content::FeaturedContentParams;
 
-use super::{FeaturedContent, FeaturedContentInfo};
+use super::{FeaturedContentInfo};
 
-pub async fn new() -> anyhow::Result<FeaturedContent, anyhow::Error> {
+pub async fn new(params: &FeaturedContentParams) -> anyhow::Result<Vec<FeaturedContentInfo>> {
+	let url = format!("https://kitsu.io/api/edge/anime");
 
-    let mut new_headers = HeaderMap::new();
-    new_headers.insert(USER_AGENT, HeaderValue::from_str("PostmanRuntime/7.53.0")?);
+  let now = Utc::now();
+  let query = [
+    ("filter[seasonYear]", now.year().to_string()),
+  ];
 
-    let client = Client::new();
-    let res = client.get("https://simkl.com/anime/")
-        .headers(new_headers)
-        .send()
-        .await?;
+	let client = reqwest::Client::new();
+  let res = client.get(url)
+    .query(&query)
+    .send()
+    .await;
+
+  let res_data = res?
+    .json::<serde_json::Value>()
+    .await?;
+
+  
+
+  let item_list = res_data.get("data")
+    .ok_or(anyhow!("data not exist"))?
+    .as_array()
+    .ok_or(anyhow!("data not an array"))?;
+
+  let mut result: Vec<FeaturedContentInfo> = Vec::new();
+
+  for item in item_list{
+    let id = item.get("id")
+      .ok_or(anyhow!("id not exist"))?
+      .as_str()
+      .ok_or(anyhow!("id not a str"))?;
+
+    let attributes = item.get("attributes")
+      .ok_or(anyhow!("attributes not exist"))?
+      .as_object()
+      .ok_or(anyhow!("attributes not an object"))?;
+
+    let title = attributes.get("canonicalTitle")
+      .ok_or(anyhow!("canonicalTitle not exist"))?
+      .as_str()
+      .ok_or(anyhow!("canonicalTitle not a string"))?;
+
+    let short_desc = attributes.get("synopsis")
+      .ok_or(anyhow!("synopsis not exist"))?
+      .as_str()
+      .ok_or(anyhow!("synopsis not a string"))?;
+
+    let cover_images_opt = attributes.get("coverImage")
+      .unwrap_or_default()
+      .as_object();
+
+    let banner_url = match cover_images_opt {
+      Some(cover_images) => {
+        cover_images.get("original")
+          .unwrap_or_default()
+          .as_str()
+          .unwrap_or_default()
+      },
+      None => "",
+    };
+
+    // Contextual
+    let mut contextual = Vec::new();
+
+    contextual.push(String::from("Anime"));
     
-    let html = res.text().await?;
-
-    let mut new_featured_content = FeaturedContent(vec![]);
-
-
-    let vis = Vis::load(html)
-        .map_err(|e| anyhow::Error::msg(e.to_string()))?;
-
-    for script in vis.find("script") {
-        let text: String = script.html();
-
-        if text.contains("var artData =") {
-            let re = Regex::new(r"(?s)var\s+artData\s*=\s*(\[.*?\]);")?;
-            if let Some(cap) = re.captures(&text) {
-                let array_str = cap.get(1)
-                    .ok_or("array_str not found")
-                    .map_err(|e| anyhow::Error::msg(e.to_string()))?
-                    .as_str();
-
-                let items: Vec<Vec<String>> = json5::from_str(&array_str)?;
-
-                for item in items {
-                    let id = encode(&item[8]).to_string();
-
-
-                    let mut new_contextual: Vec<String> = vec![
-                        String::from("Anime"),
-                        item[3].clone(),
-                        format!("Rating: {}", item[7]),
-                    ];
-                    new_contextual.retain(|i| !i.is_empty());
-
-                    new_featured_content.0.push(FeaturedContentInfo {
-                        id: id.to_string(),
-                        title: item[1].clone(),
-                        contextual: new_contextual,
-                        short_description: item[2].clone(),
-                        banner_url: format!("https://wsrv.nl/?url=https://simkl.in/fanart/{}_medium.webp", item[9]),
-                    });
-                }
-            }
-        }
+    match attributes.get("averageRating"){
+      Some(avg_rating) => {
+        println!("{:?}", avg_rating);
+        match avg_rating
+          .as_str()
+          .unwrap_or_default()
+          .parse::<f32>(){
+            Ok(raw_avg_rating) => {
+              let rating = format!("{:.2}", raw_avg_rating / 10.0);
+              contextual.push(format!("Rating: {}",rating));
+            },
+            Err(_) => {},
+          }
+      },
+      None => {},
     }
 
+    
 
-    return Ok(new_featured_content);
+    match attributes.get("ageRating") {
+      Some(age_rating) => contextual.push(age_rating.as_str().unwrap_or_default().to_string().to_uppercase()),
+      None => {},
+    }
+    match attributes.get("status") {
+      Some(d) => contextual.push(format!("{}", d.as_str().unwrap_or_default().to_string().to_uppercase())),
+      None => {},
+    }
+
+    // <-
+
+
+    let data = FeaturedContentInfo{
+      source: params.source.clone(),
+      id: id.to_string(),
+      title: title.to_string(),
+      short_description: short_desc.to_string(),
+      banner_url: banner_url.to_string(),
+      contextual,
+      
+    };
+
+    result.push(data);
+  }
+
+  println!("{:?}", result);
+
+  return Ok(result);
 }

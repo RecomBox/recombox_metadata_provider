@@ -1,29 +1,36 @@
 mod anime;
-mod movies;
+mod movie;
 mod tv;
 
 use serde::{Deserialize, Serialize};
 use crate::global_types::{Source};
 
-
 #[derive(Debug, Serialize, Deserialize)]
-pub struct SearchContent (pub Vec<SearchContentInfo>);
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SearchContentInfo {
-    pub id: String,
-    pub title: String,
-    pub year: String,
-    pub rank: Option<u64>,
-    pub thumbnail_url: String
+pub struct SearchContentParams {
+	pub tmdb_token: String,
+	pub source: Source,
+	pub search: String,
+	pub page: u64,
 }
 
 
-pub async fn new(source: &Source, search: &str, sort: u64, page: u64) -> anyhow::Result<SearchContent, anyhow::Error> {
-    return match source {
-        Source::Anime => Ok(anime::new(source, search, sort, page).await?),
-        Source::Movies => Ok(movies::new(source, search, sort, page).await?),
-        Source::TV => Ok(tv::new(source, search, sort, page).await?),
-    };
+
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SearchContentInfo {
+	pub id: String,
+	pub title: String,
+	pub year: String,
+	pub thumbnail_url: String
+}
+
+
+pub async fn new(params: &SearchContentParams) -> anyhow::Result<Vec<SearchContentInfo>> {
+	return match params.source {
+		Source::Anime => Ok(anime::new(params).await?),
+		Source::Movie => Ok(movie::new(params).await?),
+		Source::TV => Ok(tv::new(params).await?),
+		_ => todo!()
+	};
 }
 

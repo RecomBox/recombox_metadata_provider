@@ -1,119 +1,80 @@
 
 
-use reqwest::{
-    Client,
-    header::{HeaderMap, HeaderValue, USER_AGENT, ORIGIN, REFERER},
-    multipart::{Form}
-};
-use serde_json::{Value};
-use urlencoding::encode;
-use indexmap::IndexMap;
+use anyhow::anyhow;
+use chrono::{NaiveDate, Datelike};
 
-use super::{SearchContent, SearchContentInfo};
-use crate::global_types::Source;
+use super::{ SearchContentInfo};
+use crate::search_content::SearchContentParams;
 
-pub async fn new(
-    source: &Source,
-    search: &str, 
-    sort: u64,
-    page: u64
-) -> anyhow::Result<SearchContent, anyhow::Error> {
+pub async fn new(params: &SearchContentParams) -> anyhow::Result<Vec<SearchContentInfo>, anyhow::Error> {
 
-    let mut new_headers = HeaderMap::new();
-    new_headers.insert(USER_AGENT, HeaderValue::from_str("PostmanRuntime/7.53.0")?);
-    new_headers.insert(ORIGIN, HeaderValue::from_str("https://simkl.com")?);
-    new_headers.insert(REFERER, HeaderValue::from_str("https://simkl.com/")?);
+	let url = "https://api.themoviedb.org/3/search/tv";
+
+	let querystring = [
+		("query", String::from(&params.search)),
+		("include_adult", String::from("true")),
+		("language", String::from("en-US")),
+		("page", String::from(&params.page.to_string())),
+	];
+
+	let client = reqwest::Client::new();
+	let res = client.get(url)
+		.query(&querystring)
+		.header("accept", "application/json")
+		.header("Authorization", format!("Bearer {}", params.tmdb_token))
+		.send()
+		.await;
+
+	let res_data = res?
+		.json::<serde_json::Value>()
+		.await?;
+
+	let item_list = res_data.get("results")
+		.ok_or(anyhow!("results not exist"))?
+		.as_array()
+		.ok_or(anyhow!("results not an array"))?;
+
+	let mut result: Vec<SearchContentInfo> = Vec::new();
+	
+
+	for item in item_list{
+		let id = item.get("id")
+			.ok_or(anyhow!("id not exist"))?
+			.as_u64()
+			.ok_or(anyhow!("id not a number"))?
+			.to_string();
+
+		let title = item.get("original_name")
+			.ok_or(anyhow!("title not exist"))?
+			.as_str()
+			.ok_or(anyhow!("title not a string"))?;
 
 
+		let poster_path = item.get("poster_path")
+			.ok_or(anyhow!("bposter_path not exist"))?
+			.as_str()
+			.unwrap_or_default();
 
-    let form_data = Form::new()
-        .text("s", search.to_string())
-        .text("type", source.to_string())
-        .text("sort", sort.to_string())
-        .text("offset", ((page-1) * 50).to_string());
+		let poster_url = format!("https://image.tmdb.org/t/p/original{}", poster_path);
+		
+		let release_date = item.get("first_air_date")
+			.ok_or(anyhow!("release_date not exist"))?
+			.as_str()
+			.ok_or(anyhow!("release_date not a string"))?;
 
+		let year = NaiveDate::parse_from_str(release_date, "%Y-%m-%d")?.year()
+			.to_string();
 
-    let client = Client::new();
-    let res = client.post("https://simkl.com/ajax/full/search.php")
-        .headers(new_headers)
-        .multipart(form_data)
-        .send()
-        .await?;
+		let data = SearchContentInfo{
+			id: id,
+			title: title.to_string(),
+			thumbnail_url: poster_url,
+			year
+		};
 
+		result.push(data);
+	}
+	
 
-    let data: IndexMap<String, Value> = match res.json().await {
-        Ok(data) => data,
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            return Ok(SearchContent(Vec::new()));
-        },
-    };
-
-
-    let mut new_search_content = SearchContent(Vec::new());
-
-    for (_,  value) in data {
-
-        let raw_id = value.get("url")
-            .ok_or("Unable to load id")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .as_str()
-            .ok_or("Unable to load id as string")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .to_string()
-            .replace("/tv", "");
-
-        let id = encode(&raw_id).to_string();
-
-        let year = value.get("year")
-            .ok_or("Unable to load year")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .as_str()
-            .ok_or("Unable to load year as string")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .to_string();
-
-        let rank = value.get("rank")
-            .ok_or("Unable to load rank")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .as_u64();
-
-        let raw_thumbnail_id = value.get("poster")
-            .ok_or("Unable to load thumbnail")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .as_str()
-            .ok_or("Unable to load thumbnail as string")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .to_string();
-
-        let thumbnail_url = format!("https://wsrv.nl/?url=https://simkl.in/posters/{}_m.webp", raw_thumbnail_id);
-
-        let title_obj = value.get("titles")
-            .ok_or("Unable to load title")
-            .map_err(|e| anyhow::Error::msg(e))?
-            .as_object()
-            .ok_or("Unable to load title as object")
-            .map_err(|e| anyhow::Error::msg(e))?;
-
-        let title = match title_obj.get("a7") {
-            Some(title) => title.as_str()
-                .ok_or("Unable to load title as string")
-                .map_err(|e| anyhow::Error::msg(e))?
-                .to_string(),
-            None => title_obj.get("m")
-                .ok_or("title 'm' not found")
-                .map_err(|e| anyhow::Error::msg(e))?
-                .as_str()
-                .ok_or("Unable to load title as string")
-                .map_err(|e| anyhow::Error::msg(e))?
-                .to_string()
-        };
-
-        new_search_content.0.push(SearchContentInfo {id, year, rank, thumbnail_url, title});
-
-    }
-
-    
-
-    return Ok(new_search_content);
+	return Ok(result)
 }

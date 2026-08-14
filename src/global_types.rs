@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Source {
     Anime,
-    Movies,
+    Movie,
     TV
 }
 
@@ -11,7 +11,7 @@ impl Source {
     pub fn to_string(&self) -> String {
         match self {
             Source::Anime => String::from("anime"),
-            Source::Movies => String::from("movies"),
+            Source::Movie => String::from("movie"),
             Source::TV => String::from("tv")
         }
     }
@@ -19,7 +19,8 @@ impl Source {
     pub fn from_str(s: &str) -> Source {
         match s.to_lowercase().as_str() {
             "anime" => Source::Anime,
-            "movies" => Source::Movies,
+            "movies" => Source::Movie,
+            "movie" => Source::Movie,
             "tv" => Source::TV,
             _ => Source::Anime
         }
