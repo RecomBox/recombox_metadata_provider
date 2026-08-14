@@ -14,7 +14,7 @@ pub async fn new() -> anyhow::Result<Vec<TrendingContentInfo>, anyhow::Error> {
     .await?;
 
   if !res.status().is_success(){
-		return Err(anyhow!("request failed: {}", res.status()));
+		return Err(anyhow!("request failed: {}, {}", res.status(), res.text().await?));
 	}
 
   let res_data = res

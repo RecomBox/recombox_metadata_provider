@@ -26,7 +26,7 @@ pub async fn new(params: &SearchContentParams) -> anyhow::Result<Vec<SearchConte
 		.await?;
 
 	if !res.status().is_success(){
-		return Err(anyhow!("request failed: {}", res.status()));
+		return Err(anyhow!("request failed: {}, {}", res.status(), res.text().await?));
 	}
 
 	let res_data = res

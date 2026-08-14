@@ -20,7 +20,7 @@ pub async fn new(params: &FeaturedContentParams) -> anyhow::Result<Vec<FeaturedC
     .await?;
 
   if !res.status().is_success(){
-		return Err(anyhow!("request failed: {}", res.status()));
+		return Err(anyhow!("request failed: {}, {}", res.status(), res.text().await?));
 	}
 
   let res_data = res
