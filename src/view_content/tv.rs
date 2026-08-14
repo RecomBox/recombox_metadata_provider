@@ -64,7 +64,7 @@ pub async fn new(params: &ViewContentParams) -> anyhow::Result<ViewContentInfo, 
 	// Contextual
 	let mut contextual: Vec<String> = Vec::new();
 
-	contextual.push(String::from("Movie"));
+	contextual.push(String::from("TV Show"));
 
 	let raw_rating = item.get("vote_average")
 		.ok_or(anyhow!("vote_average not exist"))?
@@ -118,14 +118,12 @@ pub async fn new(params: &ViewContentParams) -> anyhow::Result<ViewContentInfo, 
 
 	let imdb_id = item.get("external_ids")
     .and_then(|f| f.get("imdb_id"))
-		.ok_or(anyhow!("imdb_id not exist"))?
-		.as_str()
-		.ok_or(anyhow!("imdb_id not a string"))?
-		.to_string();
+		.and_then(|f| f.as_str())
+		.and_then(|f| Some(f.to_string()));
 
 	let external_id = ExternalID{
 		tmdb: Some(params.id.to_string()),
-		imdb: Some(imdb_id.to_string()),
+		imdb: imdb_id,
 		..Default::default()
 	};
 
