@@ -72,13 +72,19 @@ pub async fn new(params: &SearchContentParams) -> anyhow::Result<Vec<SearchConte
       None => "",
     };
 
-    let start_date = attributes.get("startDate")
-      .ok_or(anyhow!("startDate not exist"))?
-      .as_str()
-      .ok_or(anyhow!("startDate not a string"))?;
 
-    let start_year = NaiveDate::parse_from_str(start_date, "%Y-%m-%d")?.year()
-			.to_string();
+    let start_date = attributes.get("startDate")
+      .and_then(|f| f.as_str());
+
+    let start_year = match start_date {
+      Some(start_date_str) => {
+        NaiveDate::parse_from_str(
+          start_date_str, 
+          "%Y-%m-%d"
+        )?.year().to_string()
+      },
+      None => "?".to_string(),
+    };
 
     let end_year = match attributes.get("endDate") {
       Some(end_date_v) => {

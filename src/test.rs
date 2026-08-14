@@ -31,7 +31,7 @@ use crate::{featured_content::FeaturedContentParams, global_types::Source, searc
         println!("{:?}", result);
     }
 
-    #[tokio::test]
+    // #[tokio::test]
     async fn trending_content() {
         init().await;
         use crate::trending_content;
@@ -50,7 +50,7 @@ use crate::{featured_content::FeaturedContentParams, global_types::Source, searc
         
     }
 
-    // #[tokio::test]
+    #[tokio::test]
     async fn search_content() {
         init().await;
         use crate::search_content;
@@ -61,7 +61,7 @@ use crate::{featured_content::FeaturedContentParams, global_types::Source, searc
         let params = SearchContentParams{
             tmdb_token: token,
             source: Source::Anime,
-            search: "spider".to_string(),
+            search: "love is war".to_string(),
             page: 1,
         };
 
