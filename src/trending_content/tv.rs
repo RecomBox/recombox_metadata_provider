@@ -64,11 +64,10 @@ pub async fn new(params: &TrendingContentParams) -> anyhow::Result<Vec<TrendingC
 		let year = NaiveDate::parse_from_str(release_date, "%Y-%m-%d")?.year()
 			.to_string();
 
-		let rating = item.get("vote_average")
+		let rating = format!("{:.2}", item.get("vote_average")
 			.ok_or(anyhow!("vote_average not exist"))?
 			.as_f64()
-			.ok_or(anyhow!("vote_average not a number"))?
-			.to_string();
+			.ok_or(anyhow!("vote_average not a number"))?);
 
 		let data = TrendingContentInfo{
 			id: id,
