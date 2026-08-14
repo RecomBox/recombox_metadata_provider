@@ -59,7 +59,7 @@ pub async fn new(params: &SearchContentParams) -> anyhow::Result<Vec<SearchConte
 			.as_str()
 			.unwrap_or_default();
 
-		let poster_url = format!("https://image.tmdb.org/t/p/original{}", poster_path);
+		let poster_url = format!("https://image.tmdb.org/t/p/w92{}", poster_path);
 		
 		let release_date = item.get("first_air_date")
 			.ok_or(anyhow!("release_date not exist"))?
