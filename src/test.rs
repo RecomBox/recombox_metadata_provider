@@ -23,7 +23,7 @@ use crate::{featured_content::FeaturedContentParams, global_types::Source, searc
             .expect("TMDB_RAT_TOKEN must be set");
 
         let params = FeaturedContentParams{
-            source: Source::Anime,
+            source: Source::TV,
             tmdb_token: token
         };
 
@@ -31,7 +31,7 @@ use crate::{featured_content::FeaturedContentParams, global_types::Source, searc
         println!("{:?}", result);
     }
 
-    // #[tokio::test]
+    #[tokio::test]
     async fn trending_content() {
         init().await;
         use crate::trending_content;
@@ -69,7 +69,7 @@ use crate::{featured_content::FeaturedContentParams, global_types::Source, searc
         println!("{:?}", result);
     }
 
-    #[tokio::test]
+    // #[tokio::test]
     async fn view_content() {
         init().await;
         use crate::view_content;

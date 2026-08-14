@@ -21,11 +21,14 @@ pub async fn new(params: &TrendingContentParams) -> anyhow::Result<Vec<TrendingC
 		.send()
 		.await;
 
+	
+
 	let res_data = res?
 		.json::<serde_json::Value>()
 		.await?;
+
 	let item_list = res_data.get("results")
-		.ok_or(anyhow!("results not exist"))?
+		.ok_or(anyhow!(format!("results not exist: {}", res_data)))?
 		.as_array()
 		.ok_or(anyhow!("results not an array"))?;
 
