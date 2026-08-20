@@ -1,6 +1,7 @@
 
 use anyhow::anyhow;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Utc, TimeZone};
+use serde_json::Value;
 
 
 
@@ -149,8 +150,10 @@ pub async fn new(params: &ViewContentParams) -> anyhow::Result<ViewContentInfo, 
 
   let yt_link = format!("https://www.youtube.com/watch?v={}", yt_video_id);
 
-  let external_id = get_external_ids(&params)
-    .await?;
+  let external_id = match get_external_ids(&params).await {
+    Ok(d) => d,
+    Err(_) => ExternalID::default(),
+  };
 
   let data = ViewContentInfo{
 
@@ -224,6 +227,36 @@ async fn get_external_ids(params: &ViewContentParams) -> anyhow::Result<External
       }
       _ => {}
     };
+
+    if let Some(thetvdb) = external_id.thetvdb.as_ref() {
+      let url = format!(
+        "https://api.themoviedb.org/3/find/{}?external_source=tvdb_id",
+        thetvdb
+      );
+
+      let client = reqwest::Client::new();
+      let res = client
+        .get(&url)
+        .bearer_auth(&params.tmdb_token) // <-- Bearer token here
+        .send()
+        .await?
+        .error_for_status()? // ensure 2xx
+        .json::<Value>()
+        .await?;
+
+      let tv_results = res.get("tv_results")
+        .ok_or(anyhow!("tv_results not exist"))?
+        .as_array()
+        .ok_or(anyhow!("tv_results not an array"))?;
+
+      if tv_results.len() > 0 {
+        let id = tv_results[0].get("id")
+          .and_then(|f| f.as_u64())
+          .unwrap_or_default();
+        external_id.tmdb = Some(id.to_string());
+      }
+
+    }
 
   }
 
