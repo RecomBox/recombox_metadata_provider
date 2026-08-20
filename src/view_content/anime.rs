@@ -196,6 +196,7 @@ async fn get_external_ids(params: &ViewContentParams) -> anyhow::Result<External
     .ok_or(anyhow!("data not an array"))?;
 
   let mut external_id = ExternalID::default();
+  external_id.kitsu = Some(params.id.clone());
 
   for item in data_li {
 
