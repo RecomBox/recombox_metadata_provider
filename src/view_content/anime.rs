@@ -226,6 +226,13 @@ async fn get_external_ids(params: &ViewContentParams) -> anyhow::Result<External
 
         external_id.mal = Some(id.to_string());
       }
+      "anilist/anime" => {
+        let id = attributes.get("externalId")
+          .and_then(|f| f.as_str())
+          .unwrap_or_default();
+
+        external_id.anilist = Some(id.to_string());
+      }
       _ => {}
     };
 

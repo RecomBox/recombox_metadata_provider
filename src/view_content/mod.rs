@@ -39,7 +39,8 @@ pub struct ExternalID {
 	pub kitsu: Option<String>,
 	pub imdb: Option<String>,
 	pub tmdb: Option<String>,
-	pub thetvdb: Option<String>
+	pub thetvdb: Option<String>,
+	pub anilist: Option<String>
 }
 
 
